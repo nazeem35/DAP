@@ -5,6 +5,7 @@ import java.io.FileReader;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.PriorityQueue;
 import java.util.Stack;
 
 import java.io.Writer;
@@ -26,7 +27,7 @@ class Algorithm
     {
         for (int i = 0; i < ras2.Safe.size(); i++)
         {
-        	//Ahmed not sure if index of workds
+        	//Ahmed not sure if index of works
             int idx = ras1.States.indexOf(ras2.States.get(i));
             //Ahmed
             //Probably impossible
@@ -73,7 +74,6 @@ class Algorithm
 	        }
 	        else
 	        {
-	
 	            writer.write(MaximalPolicies.size());
 	            writer.newLine();
 	            for (int i = 0; i < MaximalPolicies.size(); i++)
@@ -97,53 +97,121 @@ class Algorithm
     		
     	}
     }
-    public void SolvePN()
+    
+    // This function returns the linear policy with the maximum number of safe states
+    public void SolvePNMax()
     {
-        //////RAS ras = new RAS();
-        //////ras.p = 2;
-        //////ras.m0 = new int[2]; ras.m0[0] = 0; ras.m0[1] = 0;
-        //////ras.StateDict = new Dictionary<String, int>(); ras.StateDict.Add("0,0", 0);
-        //////ras.States = new List<String>();
-        //////ras.NextStates = new List<List<int>>(); List<int> next;
-        //////ras.States.Add("0,0"); next = new List<int>(); next.Add(1);next.Add(3);ras.NextStates.Add(next);
-        //////ras.States.Add("0,1"); next = new List<int>(); next.Add(0);next.Add(2);next.Add(8); ras.NextStates.Add(next);
-        //////ras.States.Add("0,2"); next = new List<int>(); next.Add(1);next.Add(5);next.Add(7); ras.NextStates.Add(next);
-        //////ras.States.Add("1,0"); next = new List<int>(); next.Add(0);next.Add(4);next.Add(8); ras.NextStates.Add(next);
-        //////ras.States.Add("2,0"); next = new List<int>(); next.Add(3);next.Add(9);next.Add(11); ras.NextStates.Add(next);
-        //////ras.States.Add("0,3"); next = new List<int>(); next.Add(6); ras.NextStates.Add(next);
-        //////ras.States.Add("1,3"); next = new List<int>(); next.Add(7); ras.NextStates.Add(next);
-        //////ras.States.Add("1,2"); next = new List<int>(); next.Add(8); ras.NextStates.Add(next);
-        //////ras.States.Add("1,1"); next = new List<int>(); next.Add(9); ras.NextStates.Add(next);
-        //////ras.States.Add("2,1"); next = new List<int>(); next.Add(10); ras.NextStates.Add(next);
-        //////ras.States.Add("3,1"); next = new List<int>(); next.Add(11); ras.NextStates.Add(next);
-        //////ras.States.Add("3,0"); next = new List<int>(); next.Add(10); ras.NextStates.Add(next);
-        //////ras.Safe = new List<bool>();
-        //////for (int i = 0; i < 5; i++)
-        //////    ras.Safe.Add(true);
-        //////for (int i = 0; i < 7; i++)
-        //////    ras.Safe.Add(false);
+    	/*RAS ras = new RAS();
+        ras.p = 4;
+        ras.r = 2;
+        ras.t = 4;
+        ras.m0 = new int[ras.p]; ras.m0[0] = 0; ras.m0[1] = 0; ras.m0[2] = 3; ras.m0[3] = 3;
+        ras.C = new int[ras.p][ras.t];
+        ras.C[0][0] = -1; ras.C[1][0] = 0; ras.C[2][0] = 1; ras.C[3][0] = 0;
+        ras.C[0][1] = 0; ras.C[1][1] = -1; ras.C[2][1] = 0; ras.C[3][1] = 1;
+        ras.C[0][2] = 1; ras.C[1][2] = 0; ras.C[2][2] = -1; ras.C[3][2] = 0;
+        ras.C[0][3] = 0; ras.C[1][3] = 1; ras.C[2][3] = 0; ras.C[3][3] = -1;
+        
+        List<Integer> next = new ArrayList<Integer>(); next.add(0); next.add(1);
+        ras.ConflictStages.add(next);
+        
+        ras.CalculateReachableStates();        
+        ras.CalculateReachableSafeStates();
+        ras.RemoveNonboundaryUnsafeStates();
+        ras.CalculateMaxSafe();
+        ras.CalculateSafeCount();*/
+    	
         int linearcount = 0;
         for (int pn = 1; pn <= 1; pn++)
         {
-            boolean MAX = true; // This is set to true to find the largest linearly separable, otherwise it will find all linearly separable 
-            int MAX_Size = 0;
+            //Create a RAS from PN file
+            RAS ras = new RAS(path + "pn" + pn + ".txt");
 
-            RAS ras = new RAS();
-            ras.ReadPN(path + "pn" + pn + ".txt");
-            boolean enumerable = ras.CalculateReachableStates();
-            if (!enumerable)//state space is very large
+
+            List<RAS> MaximalPolicies = new ArrayList<RAS>();
+            PriorityQueue<RAS> Explore = new PriorityQueue<RAS>();
+            Explore.add(ras);
+            int numExplored = 0;
+            while (Explore.size() > 0)
             {
-                WriteMaximalRAS(pn, 1, new ArrayList<RAS>());
-                linearcount++;
-                continue;
+                numExplored++;
+                RAS current = Explore.poll();
+                if (!RASinPolicies(MaximalPolicies, current))
+                {
+                    if (current.LinearSpearable())
+                    {
+                        MaximalPolicies.add(current);
+                        break;
+                    }
+                    else
+                    {
+                        List<Integer> CH = current.ConvexHull(); //new List<int>(current.MaxSafe);
+
+                        for (int i = 0; i < CH.size(); i++)
+                        {
+                            RAS newras = new RAS(current, CH, i);
+                            //newras.Prune(CH.get(i));
+                            
+                            Explore.add(newras);
+                        }
+                    }
+                }
             }
-            ras.CalculateReachableSafeStates();
-            ras.RemoveUnnecessaryStates();
-            // this function removes the resources markings from the states vectors
-            ras.RemoveResourcesFromStates();
-            ras.CalculateMaxSafe();
-            ras.ConvexHull();
-            ras.CalculateSafeCount();
+            WriteMaximalRAS(pn, numExplored, MaximalPolicies);
+            if (numExplored == 1)
+                linearcount++;
+            else
+            {
+
+            }
+            //MessageBox.Show("There is " + MaximalPolicies.Count + " maximal linear policy");
+        }
+        System.out.println(linearcount + " out of 100 are linearly separable");
+    }
+    
+    public void SolvePN()
+    {
+        /*RAS ras = new RAS();
+        ras.p = 4;
+        ras.r = 2;
+        ras.t = 4;
+        ras.m0 = new int[ras.p]; ras.m0[0] = 0; ras.m0[1] = 0; ras.m0[2] = 3; ras.m0[3] = 3;
+        ras.C = new int[ras.p][ras.t];
+        ras.C[0][0] = -1; ras.C[1][0] = 0; ras.C[2][0] = 1; ras.C[3][0] = 0;
+        ras.C[0][1] = 0; ras.C[1][1] = -1; ras.C[2][1] = 0; ras.C[3][1] = 1;
+        ras.C[0][2] = 1; ras.C[1][2] = 0; ras.C[2][2] = -1; ras.C[3][2] = 0;
+        ras.C[0][3] = 0; ras.C[1][3] = 1; ras.C[2][3] = 0; ras.C[3][3] = -1;
+        ras.StateDict.put("0,0", 0);
+        List<Integer> next;
+        ras.States.add("0,0,3,3"); next = new ArrayList<Integer>(); next.add(1);next.add(3);ras.NextStates.add(next);
+        ras.States.add("0,1,3,2"); next = new ArrayList<Integer>(); next.add(0);next.add(2);next.add(8); ras.NextStates.add(next);
+        ras.States.add("0,2,3,1"); next = new ArrayList<Integer>(); next.add(1);next.add(5);next.add(7); ras.NextStates.add(next);
+        ras.States.add("1,0,2,3"); next = new ArrayList<Integer>(); next.add(0);next.add(4);next.add(8); ras.NextStates.add(next);
+        ras.States.add("2,0,1,3"); next = new ArrayList<Integer>(); next.add(3);next.add(9);next.add(11); ras.NextStates.add(next);
+        ras.States.add("0,3,3,0"); next = new ArrayList<Integer>(); next.add(6); ras.NextStates.add(next);
+        ras.States.add("1,3,2,0"); next = new ArrayList<Integer>(); next.add(7); ras.NextStates.add(next);
+        ras.States.add("1,2,2,1"); next = new ArrayList<Integer>(); next.add(8); ras.NextStates.add(next);
+        ras.States.add("1,1,2,2"); next = new ArrayList<Integer>(); next.add(9); ras.NextStates.add(next);
+        ras.States.add("2,1,1,2"); next = new ArrayList<Integer>(); next.add(10); ras.NextStates.add(next);
+        ras.States.add("3,1,0,2"); next = new ArrayList<Integer>(); next.add(11); ras.NextStates.add(next);
+        ras.States.add("3,0,0,3"); next = new ArrayList<Integer>(); next.add(10); ras.NextStates.add(next);
+        ras.Safe = new ArrayList<Boolean>();
+        for (int i = 0; i < 6; i++)
+            ras.Safe.add(true);
+        for (int i = 0; i < 5; i++)
+            ras.Safe.add(false);
+        ras.Safe.add(true);
+        next = new ArrayList<Integer>(); next.add(0); next.add(1);
+        ras.ConflictStages.add(next);
+        ras.RemoveNonboundaryUnsafeStates();
+        ras.CalculateMaxSafe();
+        ras.CalculateSafeCount();*/
+        
+        int linearcount = 0;
+        for (int pn = 1; pn <= 1; pn++)
+        {
+            //Create a RAS from PN file
+            RAS ras = new RAS(path + "pn" + pn + ".txt");
 
 
             List<RAS> MaximalPolicies = new ArrayList<RAS>();
@@ -158,21 +226,7 @@ class Algorithm
                 {
                     if (current.LinearSpearable())
                     {
-                        if (MAX)
-                        {
-                            //Ahmed
-                            //I think this is wrong-- we are not searching for the maximum sized
-                            if (current.safeCount > MAX_Size)
-                            {
-                                MAX_Size = current.safeCount;
-                                MaximalPolicies.clear();
-                                MaximalPolicies.add(current);
-                            }
-                        }
-                        else
-                        {
-                            MaximalPolicies = AddRASToPolicies(MaximalPolicies, current);
-                        }
+                        MaximalPolicies = AddRASToPolicies(MaximalPolicies, current);
                     }
                     else
                     {
@@ -180,14 +234,10 @@ class Algorithm
 
                         for (int i = 0; i < CH.size(); i++)
                         {
-                            RAS newras = new RAS(current);
-                            newras.Prune(CH.get(i));
-                            if (MAX && (newras.safeCount <= MAX_Size))
-                                continue;
-                            //Ahmed
-                            //Mising check condition-- uncomment
-                            //if (!RASinPolicies(MaximalPolicies, newras))
-                            Explore.push(newras);
+                        	RAS newras = new RAS(current, CH, i);
+
+                            if (!RASinPolicies(MaximalPolicies, newras))
+                            	Explore.push(newras);
                         }
                     }
                 }
@@ -195,11 +245,6 @@ class Algorithm
             WriteMaximalRAS(pn, numExplored, MaximalPolicies);
             if (numExplored == 1)
                 linearcount++;
-            else
-            {
-
-            }
-            //MessageBox.Show("There is " + MaximalPolicies.Count + " maximal linear policy");
         }
         System.out.println(linearcount + " out of 100 are linearly separable");
     }

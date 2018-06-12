@@ -19,7 +19,7 @@ import ilog.concert.*;
 import ilog.concert.IloCopyManager.Check;
 import ilog.cplex.*;
 
-public class RAS
+public class RAS implements Comparable<RAS>
 {
     public int p;
     public int t;
@@ -32,6 +32,8 @@ public class RAS
     public List<Boolean> Safe = new ArrayList<Boolean>();
     public List<Integer> MaxSafe = new ArrayList<Integer>();
     public List<Integer> MinUnsafe = new ArrayList<Integer>();
+    public List<Integer> BoundaryUnsafe = new ArrayList<Integer>();
+    public List<Integer> ConvexHullStates = new ArrayList<Integer>();
     public List<List<Integer>> NextStates = new ArrayList<List<Integer>>();
     public Map<String, Integer> StateDict = new HashMap<String, Integer>();
     List<List<Integer>> ConflictStages = new ArrayList<List<Integer>>();
@@ -47,7 +49,9 @@ public class RAS
     //Ahmed - indexing looks weird. Why?
     public List<Integer> ConvexHull()
     {
-        List<Integer> points = new ArrayList<Integer>();
+    	//return MaxSafe;
+    	// return MaxSafe temporarily
+    	List<Integer> points = new ArrayList<Integer>();
         List<Integer> SafeIDX = new ArrayList<Integer>();
         int NumberOfVertices = 0;
         for (int i = 0; i < Safe.size(); i++)
@@ -78,6 +82,14 @@ public class RAS
         	//Ahmed not sure if this works or not
             if (!MaxSafe.contains(SafeIDX.get(itr1)))
                 continue;
+            
+            // If the maximal state is on the convex hull of the states before pruning
+            // then, it is on the convex hull of the states after pruning.
+            if(ConvexHullStates.contains(SafeIDX.get(itr1)))
+            {
+            	points.add(SafeIDX.get(itr1));
+            	continue;
+            }
 
  
             try
@@ -91,23 +103,25 @@ public class RAS
             	IloNumVarArray var = new IloNumVarArray();
             	for(int i=0;i<NumberOfVertices;i++)
             	{
+            		IloColumn column;
             		if(i== itr1)
-            			continue;
-            		 IloColumn column = cplex.column(modelObj, 1);
+            			column = cplex.column(modelObj, 0);
+            		else
+            			column = cplex.column(modelObj, 1);
+            		
      	            for ( int j = 0; j < p; j++ )
      	               column = column.and(cplex.column(rng[j], vertices[j][i]));
      	           column = column.and(cplex.column(rng[p], 1));
      	            var.add(cplex.numVar(column, 0., 1 ,"h"+i));
             	}
             	
-            	
-
                 if (cplex.solve())
                 {
-                	if(cplex.isPrimalFeasible())
+                	double objective = cplex.getObjValue();
+                	double eps = 10e-6;
+                	if(objective < eps)
                 		points.add(SafeIDX.get(itr1));
-       				 
-       			 }
+       			}
                 cplex.end();
                
             }
@@ -126,8 +140,7 @@ public class RAS
 
     public void ReadPN(String file)
     {
-   
-    	try
+        try
     	{
 	    	BufferedReader reader = new BufferedReader(new FileReader(file));
 	        p = Integer.parseInt(reader.readLine());
@@ -177,9 +190,9 @@ public class RAS
     	return res;
     }
     /// <summary>
-    /// uses the C matrix and the initial marking to calculate all the states
+    /// uses the C matrix and the initial marking to calculate all the reachable states
     /// </summary>
-    public boolean CalculateReachableStates()
+    public void CalculateReachableStates()
     {
         int currentState = 0;
         StateDict.put(join(",", m0), 0);
@@ -201,7 +214,7 @@ public class RAS
                 int NonZeroCount = 0;
                 for (int k = 0; k < ConflictStages.get(j).size(); k++)
                 {
-                    if (tokens[ConflictStages.get(j).get(k)] != "0")
+                    if (!tokens[ConflictStages.get(j).get(k)].equals("0"))
                         NonZeroCount++;
                 }
                 if (NonZeroCount >= 2)
@@ -238,13 +251,77 @@ public class RAS
             //5-
             currentState++;
 
-            // This to determine large problems and ignore them
-            if (States.size() > 1000000)
-                return false;
         }
 
+    }
 
-        return true;
+  /// <summary>
+    /// uses the C matrix and the initial marking to calculate all the reachable states in FromStates list
+    /// </summary>
+    public void CalculateReachableStates(List<String> FromStates)
+    {
+        int currentState = 0;
+        StateDict.put(join(",", m0), 0);
+        States.add(join(",", m0));
+
+        while (currentState < States.size())
+        {
+            //0- Initialize the next states
+            List<Integer> next = new ArrayList<Integer>();
+            //1- Get the state that you want to explore
+            int[] s = new int[p];
+            String[] tokens = States.get(currentState).split(",");
+            for (int i = 0; i < p; i++)
+                s[i] = Integer.parseInt(tokens[i]);
+            //2- Make sure that the state doesn't have any stage conflict
+            boolean conflict = false;
+            for (int j = 0; j < ConflictStages.size(); j++)
+            {
+                int NonZeroCount = 0;
+                for (int k = 0; k < ConflictStages.get(j).size(); k++)
+                {
+                    if (! tokens[ConflictStages.get(j).get(k)].equals("0"))
+                        NonZeroCount++;
+                }
+                if (NonZeroCount >= 2)
+                    conflict = true;
+            }
+            //3- If there is no conflict explore reachable states from the current state 
+            if (!conflict)
+            {
+                for (int j = 0; j < t; j++)
+                {
+                    boolean reachable = true;
+                    int[] m = new int[p];
+                    for (int i = 0; i < p; i++)
+                    {
+                        m[i] = s[i];
+                        m[i] += C[i][j];
+                        if (m[i] < 0)
+                            reachable = false;
+                    }
+                    if (reachable)
+                    {
+                    	if(FromStates.contains(join(",", m)))
+                    	{
+                            if (!StateDict.containsKey(join(",", m)))
+                            {
+                                StateDict.put(join(",", m), States.size());
+                                States.add(join(",", m));
+                            }
+                            next.add(StateDict.get(join(",", m)));
+                    	}
+                    }
+                }
+            }
+            //4-
+            NextStates.add(next);
+
+            //5-
+            currentState++;
+
+        }
+
     }
 
     /// <summary>
@@ -275,13 +352,12 @@ public class RAS
         }
     }
 
-    public void RemoveUnnecessaryStates()
+    public void RemoveNonboundaryUnsafeStates()
     {
         CalculateMaxSafe();
         for (int i = States.size() - 1; i >= 0; i--)
         {
-        	//Ahmed--Not sure
-            if (MinUnsafe.contains(i))
+            if (BoundaryUnsafe.contains(i))
             {
                 NextStates.set(i,new ArrayList<Integer>());
                 continue;
@@ -290,59 +366,14 @@ public class RAS
             {
                 NextStates.set(i, new ArrayList<Integer>());
                 for (int itr = 0; itr < States.size(); itr++)
-                    NextStates.get(itr).remove(i);
+                {
+                	if(NextStates.get(itr).contains(i))
+                		NextStates.get(itr).remove(new Integer(i));
+                }
                 //StateDict.Remove(States[i]);
                 States.set(i, "");
             }
         }
-        //////bool change = false;
-        //////do
-        //////{
-        //////    change = false;
-        //////    for(int i = 0; i < States.Count; i++)
-        //////    {
-        //////        if (States[i] == "")
-        //////            continue;
-        //////        if (!Safe[i])
-        //////            continue;
-
-        //////        for(int j = i + 1; j < States.Count; j++)
-        //////        {
-        //////            if (States[j] == "")
-        //////                continue;
-
-        //////            if (NextStates[i].Count != NextStates[j].Count)
-        //////                continue;
-        //////            bool same = true;
-        //////            for (int k = 0; k < NextStates[i].Count; k++)
-        //////                if (NextStates[i][k] != NextStates[j][k])
-        //////                {
-        //////                    same = false;
-        //////                    break;
-        //////                }
-        //////            if(same)
-        //////            {
-        //////                StateDict.Remove(States[i]);
-        //////                States[i] = "";
-        //////                NextStates[i] = new List<int>();
-        //////                for(int itr = 0; itr < NextStates.Count; itr++)
-        //////                {
-        //////                    int index = NextStates[itr].IndexOf(i);
-        //////                    if (index != -1)
-        //////                    {
-        //////                        if (!NextStates[itr].Contains(j))
-        //////                            NextStates[itr][index] = j;
-        //////                        else
-        //////                            NextStates[itr].Remove(i);
-        //////                    }
-        //////                }
-        //////                change = true;
-        //////                break;
-        //////            }
-        //////        }
-        //////    }
-        //////}
-        //////while (change);
 
         int newidx = States.indexOf("");
         if (newidx == -1)
@@ -350,7 +381,7 @@ public class RAS
         for (int i = States.indexOf(""); i < States.size(); i++)
         {
         	//Ahmed might be problematic
-            if (States.get(i) != "")
+            if (!States.get(i).equals(""))
             {
                 States.set(newidx, States.get(i));
                 States.set(i, "");
@@ -386,22 +417,22 @@ public class RAS
     }
 
 
-    public void RemoveResourcesFromStates()
-    {
-        p = p - r;
-        for (int itr = 0; itr < States.size(); itr++)
-        {
-            String[] tokens = States.get(itr).split(",");
-            String newstate = tokens[0];
-            for (int i = 1; i < p; i++)
-                newstate += "," + tokens[i];
-            States.set(itr, newstate);
-        }
-    }
+	// Commenting all the code for the new pruning function
+    //public void RemoveResourcesFromStates()
+    //{
+        //p = p - r;
+        //for (int itr = 0; itr < States.size(); itr++)
+        //{
+        //    String[] tokens = States.get(itr).split(",");
+        //    String newstate = tokens[0];
+        //    for (int i = 1; i < p; i++)
+        //        newstate += "," + tokens[i];
+        //    States.set(itr, newstate);
+        //}
+    //}
 
     void getDistinctElements(List<Integer> inputList)
     {
-    	
     	Set<Integer> hs = new HashSet<>();
     	hs.addAll(inputList);
     	inputList.clear();
@@ -412,8 +443,7 @@ public class RAS
     /// </summary>
     public void CalculateMaxSafe()
     {
-        MaxSafe = new ArrayList<Integer>();
-        MinUnsafe = new ArrayList<Integer>();
+        BoundaryUnsafe = new ArrayList<Integer>();
         for (int i = 0; i < States.size(); i++)
         {
             if (Safe.get(i))
@@ -422,53 +452,129 @@ public class RAS
                 {
                     if (!Safe.get(NextStates.get(i).get(j)))
                     {
-                        MaxSafe.add(i);
-                        MinUnsafe.add(NextStates.get(i).get(j));
+                        BoundaryUnsafe.add(NextStates.get(i).get(j));
                     }
                 }
             }
         }
         //Ahmed not sure about the order of the array when duplicates are removed
-        getDistinctElements(MaxSafe);
-        getDistinctElements(MinUnsafe);
-    }
-
-    /// <summary>
-    /// mark one of the states to be unsafe and modify the data accordingly
-    /// </summary>
-    /// <param name="state"></param>
-    public void Prune(int state)
-    {
-        Safe.set(state, false);
-        //check if other states became unsafe
-        boolean change = true;
-        while (change)
+        // Michael, the order is not an issue in the code
+        getDistinctElements(BoundaryUnsafe);
+        
+        //
+        MaxSafe = new ArrayList<Integer>();
+        MinUnsafe = new ArrayList<Integer>();
+        for(int i = 0; i < States.size(); i++)
         {
-            change = false;
-            for (int i = 0; i < States.size(); i++)
+            if(Safe.get(i))
             {
-                if (Safe.get(i))
-                {
-                    boolean allfalse = true;
-                    for (int j = 0; j < NextStates.get(i).size(); j++)
-                        if (Safe.get(NextStates.get(i).get(j)))
-                        {
-                            allfalse = false;
-                            break;
-                        }
-                    if (allfalse)
-                    {
-                        Safe.set(i, false);
-                        change = true;
-                    }
-                }
+                MaxSafe.add(i);
+            }
+            else
+            {
+                MinUnsafe.add(i);
             }
         }
-        //recalculate the max safe and min unsafe
-        RemoveUnnecessaryStates();
-        CalculateMaxSafe();
-        CalculateSafeCount();
+        
+        for(int itr = MaxSafe.size() - 1; itr >= 0; itr--)
+        {
+        	boolean remove = false;
+            String[] tokens1 = States.get(MaxSafe.get(itr)).split(",");
+
+            for (int j = 0; j < MaxSafe.size(); j++)
+            {
+                if (j == itr)
+                    continue;
+                boolean AllLessOrEqual = true;
+                String[] tokens2 = States.get(MaxSafe.get(j)).split(","); 
+                for (int k = 0; k < p - r; k++)
+                {
+                    if(Integer.parseInt(tokens1[k]) > Integer.parseInt(tokens2[k]))
+                    {
+                        AllLessOrEqual = false;
+                        break;
+                    }
+                }
+                if(AllLessOrEqual)
+                {
+                    remove = true;
+                    break;
+                }
+            }
+            if(remove)
+            {
+                MaxSafe.remove(itr);
+            }
+        }
+
+        for (int itr = MinUnsafe.size() - 1; itr >= 0; itr--)
+        {
+            boolean remove = false;
+            String[] tokens1 = States.get(MinUnsafe.get(itr)).split(",");
+
+            for (int j = 0; j < MinUnsafe.size(); j++)
+            {
+                if (j == itr)
+                    continue;
+                boolean AllGreaterOrEqual = true;
+                String[] tokens2 = States.get(MinUnsafe.get(j)).split(",");
+                for (int k = 0; k < p - r; k++)
+                {
+                    if (Integer.parseInt(tokens1[k]) < Integer.parseInt(tokens2[k]))
+                    {
+                        AllGreaterOrEqual = false;
+                        break;
+                    }
+                }
+                if (AllGreaterOrEqual)
+                {
+                    remove = true;
+                    break;
+                }
+            }
+            if (remove)
+            {
+                MinUnsafe.remove(itr);
+            }
+        }
     }
+
+//    /// <summary>
+//    /// mark one of the states to be unsafe and modify the data accordingly
+//    /// </summary>
+//    /// <param name="state"></param>
+//    public void Prune(int state)
+//    {
+//        Safe.set(state, false);
+//        //check if other states became unsafe
+//        boolean change = true;
+//        while (change)
+//        {
+//            change = false;
+//            for (int i = 0; i < States.size(); i++)
+//            {
+//                if (Safe.get(i))
+//                {
+//                    boolean allfalse = true;
+//                    for (int j = 0; j < NextStates.get(i).size(); j++)
+//                        if (Safe.get(NextStates.get(i).get(j)))
+//                        {
+//                            allfalse = false;
+//                            break;
+//                        }
+//                    if (allfalse)
+//                    {
+//                        Safe.set(i, false);
+//                        change = true;
+//                    }
+//                }
+//            }
+//        }
+//        //recalculate the max safe and min unsafe
+//        RemoveNonboundaryUnsafeStates();
+//        CalculateMaxSafe();
+//        CalculateSafeCount();
+//    }
 
     /// <summary>
     /// check whether the maximal safe and minimal unsafe are linearly separable or not.
@@ -477,12 +583,10 @@ public class RAS
     public boolean LinearSpearable()
     {
         CalculateMaxSafe();
+        p = p-r;
         while (MinUnsafe.size() > 0)
         {
             double[] ab = SolveMIP412();
-            //for (int i = 0; i <= p; i++)
-            //    if (ab[i] < 0)
-            //        return false;
             int totalRemoved = 0;
             for (int i = MinUnsafe.size() - 1; i >= 0; i--)
             {
@@ -497,9 +601,13 @@ public class RAS
                 }
             }
             if (totalRemoved == 0)
+            {
+            	p = p + r;
                 return false;
+            }
 
         }
+        p = p + r;
         return true;
     }
 
@@ -588,40 +696,100 @@ public class RAS
 
     public RAS()
     { 
-    	
+    }
+    
+    public RAS(String pn)
+    {
+        ReadPN(pn);
+        // 
+        CalculateReachableStates();        
+        CalculateReachableSafeStates();
+        RemoveNonboundaryUnsafeStates();
+        CalculateMaxSafe();
+        //ConvexHull();
+        CalculateSafeCount();
     }
 
     /// <summary>
     /// copy constructor for deep copying
     /// </summary>
     /// <param name="ras"></param>
-    public RAS(RAS ras)
+//    public RAS(RAS ras)
+//    {
+//        p = ras.p;
+//        r = ras.r;
+//        t = ras.t;
+//        //empyt m0 (not needed)
+//        m0 = null;
+//        //m0 = new int[p];
+//        //for (int i = 0; i < p; i++)
+//        //    m0[i] = ras.m0[i];
+//        //empty C (not needed)
+//        C = null;
+//        //C = new int[p, t];
+//        //for (int i = 0; i < p; i++)
+//        //    for (int j = 0; j < t; j++)
+//        //        C[i, j] = ras.C[i, j];///
+//
+//        States = new ArrayList<String>(ras.States);
+//        Safe = new ArrayList<Boolean>(ras.Safe);
+//        MaxSafe = new ArrayList<Integer>(ras.MaxSafe);
+//        MinUnsafe = new ArrayList<Integer>(ras.MinUnsafe);
+//        //NextStates = ras.NextStates.Select(x => x.ToList()).ToList();
+//        NextStates = new ArrayList<List<Integer>>();
+//        //empty dict (not need)
+//        StateDict.clear();// = new Dictionary<String, int>();
+//
+//    }
+
+    /// <summary>
+    /// copy constructor for deep copying that implements pruning function
+    /// </summary>
+    /// <param name="ras"></param>
+    public RAS(RAS ras, List<Integer> CH, int itr)
     {
         p = ras.p;
         r = ras.r;
         t = ras.t;
-        //empyt m0 (not needed)
-        m0 = null;
-        //m0 = new int[p];
-        //for (int i = 0; i < p; i++)
-        //    m0[i] = ras.m0[i];
-        //empty C (not needed)
-        C = null;
-        //C = new int[p, t];
-        //for (int i = 0; i < p; i++)
-        //    for (int j = 0; j < t; j++)
-        //        C[i, j] = ras.C[i, j];
+        m0 = new int[p];
+        for (int i = 0; i < p; i++)
+            m0[i] = ras.m0[i];
+        C = new int[p][t];
+        for (int i = 0; i < p; i++)
+        {
+            for (int j = 0; j < t; j++)
+                C[i][j] = ras.C[i][j];
+        }
+        
+        for(int i = 0; i < ras.ConflictStages.size(); i++)
+        {
+        	List<Integer> temp = new ArrayList<Integer>(ras.ConflictStages.get(i));
+        	ConflictStages.add(temp);
+        }
 
-        States = new ArrayList<String>(ras.States);
-        Safe = new ArrayList<Boolean>(ras.Safe);
-        MaxSafe = new ArrayList<Integer>(ras.MaxSafe);
-        MinUnsafe = new ArrayList<Integer>(ras.MinUnsafe);
-        //NextStates = ras.NextStates.Select(x => x.ToList()).ToList();
-        NextStates = new ArrayList<List<Integer>>();
-        //empty dict (not need)
-        StateDict.clear();// = new Dictionary<String, int>();
+        List<String> temp = new ArrayList<String>(ras.States);
+        temp.remove((int)CH.get(itr));
+        CalculateReachableStates(temp);        
+        CalculateReachableSafeStates();
+        RemoveNonboundaryUnsafeStates();
+        CalculateMaxSafe();
+        CalculateSafeCount();
+        
+        for(int i = 0; i < CH.size(); i++)
+        {
+        	int index = States.indexOf(ras.States.get((int) CH.get(i)));
+        	if(index >= 0)
+        	{
+        		ConvexHullStates.add(index);
+        	}
+        }
 
     }
+
+	@Override
+	public int compareTo(RAS arg0) {
+		return Integer.compare(arg0.safeCount, this.safeCount);
+	}
 
    
 
