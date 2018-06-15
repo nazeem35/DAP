@@ -25,16 +25,31 @@ class Algorithm
     /// <returns></returns>
     public Boolean RASinRAS(RAS ras1, RAS ras2)
     {
-        for (int i = 0; i < ras2.Safe.size(); i++)
+    	int p = ras1.p - ras1.r;
+        for(int i : ras2.MaxSafe)
         {
-        	//Ahmed not sure if index of works
-            int idx = ras1.States.indexOf(ras2.States.get(i));
-            //Ahmed
-            //Probably impossible
-            if (idx == -1)
-                return false;
-            if ((ras2.Safe.get(i) == true) && (ras1.Safe.get(idx) == false))
-                return false;
+        	boolean AnyGreater = false;
+        	int[] ras2Max = ras2.States.get(i);
+        	for(int j : ras1.MaxSafe)
+        	{
+        		boolean ThisGreater = true;
+            	int[] ras1Max = ras1.States.get(j);
+        		for(int k = 0; k < p; k++)
+        		{
+        			if(ras2Max[k] > ras1Max[k])
+        			{
+        				ThisGreater = false;
+        				break;
+        			}
+        		}
+        		if(ThisGreater)
+        		{
+        			AnyGreater = true;
+        			break;
+        		}
+        	}
+        	if(!AnyGreater)
+        		return false;
         }
         return true;
     }
@@ -60,6 +75,17 @@ class Algorithm
         policies.add(ras);
         return policies;
     }
+    
+    String join(String sep,int [] arr)
+    {
+    	String res = "";
+    	for(int i=0;i<arr.length-1;i++)
+    	{
+    		res += arr[i]+sep;
+    	}
+    	res += arr[arr.length-1];
+    	return res;
+    }
 
     public void WriteMaximalRAS(int pn, int numExplored, List<RAS> MaximalPolicies)
     {
@@ -74,17 +100,19 @@ class Algorithm
 	        }
 	        else
 	        {
-	            writer.write(MaximalPolicies.size());
+	            writer.write("" + numExplored);
+	            writer.newLine();
+	            writer.write("" + MaximalPolicies.size());
 	            writer.newLine();
 	            for (int i = 0; i < MaximalPolicies.size(); i++)
 	            {
-	                writer.write(i);
+	                writer.write("" + i);
 	                writer.newLine();
 	                for (int itr = 0; itr < MaximalPolicies.get(i).States.size(); itr++)
 	                {
 	                    if (MaximalPolicies.get(i).Safe.get(itr))
 	                    {
-	                        writer.write(MaximalPolicies.get(i).States.get(itr));
+	                        writer.write(join(",", MaximalPolicies.get(i).States.get(itr)) );
 	                        writer.newLine();
 	                    }
 	                }
@@ -125,7 +153,8 @@ class Algorithm
         for (int pn = 1; pn <= 1; pn++)
         {
             //Create a RAS from PN file
-            RAS ras = new RAS(path + "pn" + pn + ".txt");
+            //RAS ras = new RAS(path + "pn" + pn + ".txt");
+            RAS ras = new RAS(path + "PT222");
 
 
             List<RAS> MaximalPolicies = new ArrayList<RAS>();
@@ -149,7 +178,8 @@ class Algorithm
 
                         for (int i = 0; i < CH.size(); i++)
                         {
-                            RAS newras = new RAS(current, CH, i);
+                        	RAS newras = new RAS(current);
+                        	newras.Prune(CH.get(i), current);
                             //newras.Prune(CH.get(i));
                             
                             Explore.add(newras);
@@ -181,28 +211,10 @@ class Algorithm
         ras.C[0][1] = 0; ras.C[1][1] = -1; ras.C[2][1] = 0; ras.C[3][1] = 1;
         ras.C[0][2] = 1; ras.C[1][2] = 0; ras.C[2][2] = -1; ras.C[3][2] = 0;
         ras.C[0][3] = 0; ras.C[1][3] = 1; ras.C[2][3] = 0; ras.C[3][3] = -1;
-        ras.StateDict.put("0,0", 0);
-        List<Integer> next;
-        ras.States.add("0,0,3,3"); next = new ArrayList<Integer>(); next.add(1);next.add(3);ras.NextStates.add(next);
-        ras.States.add("0,1,3,2"); next = new ArrayList<Integer>(); next.add(0);next.add(2);next.add(8); ras.NextStates.add(next);
-        ras.States.add("0,2,3,1"); next = new ArrayList<Integer>(); next.add(1);next.add(5);next.add(7); ras.NextStates.add(next);
-        ras.States.add("1,0,2,3"); next = new ArrayList<Integer>(); next.add(0);next.add(4);next.add(8); ras.NextStates.add(next);
-        ras.States.add("2,0,1,3"); next = new ArrayList<Integer>(); next.add(3);next.add(9);next.add(11); ras.NextStates.add(next);
-        ras.States.add("0,3,3,0"); next = new ArrayList<Integer>(); next.add(6); ras.NextStates.add(next);
-        ras.States.add("1,3,2,0"); next = new ArrayList<Integer>(); next.add(7); ras.NextStates.add(next);
-        ras.States.add("1,2,2,1"); next = new ArrayList<Integer>(); next.add(8); ras.NextStates.add(next);
-        ras.States.add("1,1,2,2"); next = new ArrayList<Integer>(); next.add(9); ras.NextStates.add(next);
-        ras.States.add("2,1,1,2"); next = new ArrayList<Integer>(); next.add(10); ras.NextStates.add(next);
-        ras.States.add("3,1,0,2"); next = new ArrayList<Integer>(); next.add(11); ras.NextStates.add(next);
-        ras.States.add("3,0,0,3"); next = new ArrayList<Integer>(); next.add(10); ras.NextStates.add(next);
-        ras.Safe = new ArrayList<Boolean>();
-        for (int i = 0; i < 6; i++)
-            ras.Safe.add(true);
-        for (int i = 0; i < 5; i++)
-            ras.Safe.add(false);
-        ras.Safe.add(true);
-        next = new ArrayList<Integer>(); next.add(0); next.add(1);
+        List<Integer> next = new ArrayList<Integer>(); next.add(0); next.add(1);
         ras.ConflictStages.add(next);
+        ras.CalculateReachableStates();
+        ras.CalculateReachableSafeStates();
         ras.RemoveNonboundaryUnsafeStates();
         ras.CalculateMaxSafe();
         ras.CalculateSafeCount();*/
@@ -212,6 +224,8 @@ class Algorithm
         {
             //Create a RAS from PN file
             RAS ras = new RAS(path + "pn" + pn + ".txt");
+            
+        	//RAS ras = new RAS(path + "PT222");
 
 
             List<RAS> MaximalPolicies = new ArrayList<RAS>();
@@ -234,13 +248,17 @@ class Algorithm
 
                         for (int i = 0; i < CH.size(); i++)
                         {
-                        	RAS newras = new RAS(current, CH, i);
+                        	RAS newras = new RAS(current);
+                        	newras.Prune(CH.get(i), current);
 
                             if (!RASinPolicies(MaximalPolicies, newras))
                             	Explore.push(newras);
                         }
                     }
                 }
+                if(numExplored % 5000 == 4999)
+                	WriteMaximalRAS(pn, numExplored, MaximalPolicies);
+                
             }
             WriteMaximalRAS(pn, numExplored, MaximalPolicies);
             if (numExplored == 1)

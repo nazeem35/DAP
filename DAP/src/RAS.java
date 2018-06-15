@@ -28,13 +28,14 @@ public class RAS implements Comparable<RAS>
     public int[][] C;
     public int safeCount;
 
-    public List<String> States = new ArrayList<String>();
+    public List<int []> States = new ArrayList<int []>();
     public List<Boolean> Safe = new ArrayList<Boolean>();
-    public List<Integer> MaxSafe = new ArrayList<Integer>();
-    public List<Integer> MinUnsafe = new ArrayList<Integer>();
-    public List<Integer> BoundaryUnsafe = new ArrayList<Integer>();
-    public List<Integer> ConvexHullStates = new ArrayList<Integer>();
+    public HashSet<Integer> MaxSafe = new HashSet<Integer>();
+    public HashSet<Integer> MinUnsafe = new HashSet<Integer>();
+    public HashSet<Integer> BoundaryUnsafe = new HashSet<Integer>();
+    public HashSet <Integer> ParentConvexHullStates = new HashSet <Integer>();
     public List<List<Integer>> NextStates = new ArrayList<List<Integer>>();
+    public List<List<Integer>> PreviousStates = new ArrayList<List<Integer>>();
     public Map<String, Integer> StateDict = new HashMap<String, Integer>();
     List<List<Integer>> ConflictStages = new ArrayList<List<Integer>>();
 
@@ -46,11 +47,8 @@ public class RAS implements Comparable<RAS>
                 safeCount++;
     }
 
-    //Ahmed - indexing looks weird. Why?
     public List<Integer> ConvexHull()
     {
-    	//return MaxSafe;
-    	// return MaxSafe temporarily
     	List<Integer> points = new ArrayList<Integer>();
         List<Integer> SafeIDX = new ArrayList<Integer>();
         int NumberOfVertices = 0;
@@ -69,31 +67,28 @@ public class RAS implements Comparable<RAS>
         {
             if (Safe.get(i))
             {
-                String[] tokens = States.get(i).split(",");
-                double[] location = new double[p];
                 for (int j = 0; j < p; j++)
-                    vertices[j][itr] = Double.parseDouble(tokens[j]);
+                    vertices[j][itr] = States.get(i)[j];
                 itr++;
             }
         }
-        for (int itr1 = 0; itr1 < NumberOfVertices; itr1++)
+        for (int MSstate : MaxSafe)
         {
-            // if it is not max safe do not examine it.
-        	//Ahmed not sure if this works or not
-            if (!MaxSafe.contains(SafeIDX.get(itr1)))
-                continue;
-            
             // If the maximal state is on the convex hull of the states before pruning
             // then, it is on the convex hull of the states after pruning.
-            if(ConvexHullStates.contains(SafeIDX.get(itr1)))
+            if(ParentConvexHullStates.contains(MSstate))
             {
-            	points.add(SafeIDX.get(itr1));
+            	points.add(MSstate);
             	continue;
             }
 
  
             try
             {
+            	//The index of the state that we are considering from the set of safe states
+            	int itr1 = SafeIDX.indexOf(MSstate);
+            	
+                
             	IloCplex cplex = new IloCplex();
             	IloObjective modelObj = cplex.addMaximize();
             	IloRange [] rng = new IloRange[p+1];
@@ -132,9 +127,8 @@ public class RAS implements Comparable<RAS>
 
         }
 
-        //Console.WriteLine("Out of the {0} 6D vertices, there are {1} Voronoi cells and {2} edges.",
-        //    NumberOfVertices, voronoi.Vertices.Count(), voronoi.Edges.Count());
-
+        ParentConvexHullStates.addAll(points);
+        
         return points;
     }
 
@@ -158,7 +152,6 @@ public class RAS implements Comparable<RAS>
 	                C[i][ j] = Integer.parseInt(tokens[j]);
 	        }
 	        // This is for the conflict processing stages
-	        //Ahmed not sure if this works
 	        if (reader.readLine() .equals( "Conflict"))
 	        {
 	            String line = "";
@@ -196,7 +189,7 @@ public class RAS implements Comparable<RAS>
     {
         int currentState = 0;
         StateDict.put(join(",", m0), 0);
-        States.add(join(",", m0));
+        States.add(m0);
 
         while (currentState < States.size())
         {
@@ -204,9 +197,8 @@ public class RAS implements Comparable<RAS>
             List<Integer> next = new ArrayList<Integer>();
             //1- Get the state that you want to explore
             int[] s = new int[p];
-            String[] tokens = States.get(currentState).split(",");
             for (int i = 0; i < p; i++)
-                s[i] = Integer.parseInt(tokens[i]);
+                s[i] = States.get(currentState)[i];
             //2- Make sure that the state doesn't have any stage conflict
             boolean conflict = false;
             for (int j = 0; j < ConflictStages.size(); j++)
@@ -214,7 +206,7 @@ public class RAS implements Comparable<RAS>
                 int NonZeroCount = 0;
                 for (int k = 0; k < ConflictStages.get(j).size(); k++)
                 {
-                    if (!tokens[ConflictStages.get(j).get(k)].equals("0"))
+                    if (States.get(currentState)[ConflictStages.get(j).get(k)] != 0)
                         NonZeroCount++;
                 }
                 if (NonZeroCount >= 2)
@@ -239,78 +231,9 @@ public class RAS implements Comparable<RAS>
                         if (!StateDict.containsKey(join(",", m)))
                         {
                             StateDict.put(join(",", m), States.size());
-                            States.add(join(",", m));
+                            States.add(m);
                         }
                         next.add(StateDict.get(join(",", m)));
-                    }
-                }
-            }
-            //4-
-            NextStates.add(next);
-
-            //5-
-            currentState++;
-
-        }
-
-    }
-
-  /// <summary>
-    /// uses the C matrix and the initial marking to calculate all the reachable states in FromStates list
-    /// </summary>
-    public void CalculateReachableStates(List<String> FromStates)
-    {
-        int currentState = 0;
-        StateDict.put(join(",", m0), 0);
-        States.add(join(",", m0));
-
-        while (currentState < States.size())
-        {
-            //0- Initialize the next states
-            List<Integer> next = new ArrayList<Integer>();
-            //1- Get the state that you want to explore
-            int[] s = new int[p];
-            String[] tokens = States.get(currentState).split(",");
-            for (int i = 0; i < p; i++)
-                s[i] = Integer.parseInt(tokens[i]);
-            //2- Make sure that the state doesn't have any stage conflict
-            boolean conflict = false;
-            for (int j = 0; j < ConflictStages.size(); j++)
-            {
-                int NonZeroCount = 0;
-                for (int k = 0; k < ConflictStages.get(j).size(); k++)
-                {
-                    if (! tokens[ConflictStages.get(j).get(k)].equals("0"))
-                        NonZeroCount++;
-                }
-                if (NonZeroCount >= 2)
-                    conflict = true;
-            }
-            //3- If there is no conflict explore reachable states from the current state 
-            if (!conflict)
-            {
-                for (int j = 0; j < t; j++)
-                {
-                    boolean reachable = true;
-                    int[] m = new int[p];
-                    for (int i = 0; i < p; i++)
-                    {
-                        m[i] = s[i];
-                        m[i] += C[i][j];
-                        if (m[i] < 0)
-                            reachable = false;
-                    }
-                    if (reachable)
-                    {
-                    	if(FromStates.contains(join(",", m)))
-                    	{
-                            if (!StateDict.containsKey(join(",", m)))
-                            {
-                                StateDict.put(join(",", m), States.size());
-                                States.add(join(",", m));
-                            }
-                            next.add(StateDict.get(join(",", m)));
-                    	}
                     }
                 }
             }
@@ -350,6 +273,19 @@ public class RAS implements Comparable<RAS>
             }
 
         }
+
+        for(int i = 0; i < States.size(); i++)
+        {
+        	List<Integer> temp = new ArrayList<Integer>();
+        	PreviousStates.add(temp);
+        }
+        for(int i = 0; i < NextStates.size(); i++)
+        {
+        	for(int j = 0; j < NextStates.get(i).size(); j++)
+        	{
+        		PreviousStates.get(NextStates.get(i).get(j)).add(i);
+        	}
+        }
     }
 
     public void RemoveNonboundaryUnsafeStates()
@@ -360,33 +296,38 @@ public class RAS implements Comparable<RAS>
             if (BoundaryUnsafe.contains(i))
             {
                 NextStates.set(i,new ArrayList<Integer>());
+                PreviousStates.set(i,new ArrayList<Integer>());
                 continue;
             }
             else if (Safe.get(i) == false)
             {
                 NextStates.set(i, new ArrayList<Integer>());
+                PreviousStates.set(i, new ArrayList<Integer>());
                 for (int itr = 0; itr < States.size(); itr++)
                 {
                 	if(NextStates.get(itr).contains(i))
                 		NextStates.get(itr).remove(new Integer(i));
+                	if(PreviousStates.get(itr).contains(i))
+                		PreviousStates.get(itr).remove(new Integer(i));
                 }
                 //StateDict.Remove(States[i]);
-                States.set(i, "");
+                States.set(i, null);
             }
         }
 
-        int newidx = States.indexOf("");
+        int newidx = States.indexOf(null);
         if (newidx == -1)
             return;
-        for (int i = States.indexOf(""); i < States.size(); i++)
+        for (int i = States.indexOf(null); i < States.size(); i++)
         {
         	//Ahmed might be problematic
-            if (!States.get(i).equals(""))
+            if (States.get(i) != null)
             {
                 States.set(newidx, States.get(i));
-                States.set(i, "");
+                States.set(i, null);
                 Safe.set(newidx, Safe.get(i));
                 NextStates.set(newidx, new ArrayList<Integer>(NextStates.get(i)));
+                PreviousStates.set(newidx, new ArrayList<Integer>(PreviousStates.get(i)));
                 //StateDict[States[newidx]] = newidx;
 
                 for (int itr = 0; itr < NextStates.size(); itr++)
@@ -395,6 +336,10 @@ public class RAS implements Comparable<RAS>
                     int index = NextStates.get(itr).indexOf(i);
                     if (index != -1)
                         NextStates.get(itr).set(index, newidx);
+                    
+                    index = PreviousStates.get(itr).indexOf(i);
+                    if (index != -1)
+                        PreviousStates.get(itr).set(index, newidx);
                 }
                 newidx++;
                 continue;
@@ -403,12 +348,12 @@ public class RAS implements Comparable<RAS>
         }
         for (int i = States.size() - 1; i > 0; i--)
         {
-        	//Ahmed might be problematic
-            if (States.get(i) .equals( ""))
+            if (States.get(i) == null)
             {
             	//Ahmed remove also might be problematic
                 States.remove(i);
                 NextStates.remove(i);
+                PreviousStates.remove(i);
                 Safe.remove(i);
             }
         }
@@ -431,19 +376,13 @@ public class RAS implements Comparable<RAS>
         //}
     //}
 
-    void getDistinctElements(List<Integer> inputList)
-    {
-    	Set<Integer> hs = new HashSet<>();
-    	hs.addAll(inputList);
-    	inputList.clear();
-    	inputList.addAll(hs);
-    }
+    
     /// <summary>
     /// calculate the maximal safe and the minimal unsafe states
     /// </summary>
     public void CalculateMaxSafe()
     {
-        BoundaryUnsafe = new ArrayList<Integer>();
+        BoundaryUnsafe = new HashSet<Integer>();
         for (int i = 0; i < States.size(); i++)
         {
             if (Safe.get(i))
@@ -457,13 +396,10 @@ public class RAS implements Comparable<RAS>
                 }
             }
         }
-        //Ahmed not sure about the order of the array when duplicates are removed
-        // Michael, the order is not an issue in the code
-        getDistinctElements(BoundaryUnsafe);
         
         //
-        MaxSafe = new ArrayList<Integer>();
-        MinUnsafe = new ArrayList<Integer>();
+        MaxSafe = new HashSet<Integer>();
+        MinUnsafe = new HashSet<Integer>();
         for(int i = 0; i < States.size(); i++)
         {
             if(Safe.get(i))
@@ -476,20 +412,21 @@ public class RAS implements Comparable<RAS>
             }
         }
         
-        for(int itr = MaxSafe.size() - 1; itr >= 0; itr--)
+        Object[] arr = MaxSafe.toArray();
+        for(int itr = arr.length - 1; itr >= 0; itr--)
         {
         	boolean remove = false;
-            String[] tokens1 = States.get(MaxSafe.get(itr)).split(",");
+            int[] tokens1 = States.get((int)arr[itr]);
 
-            for (int j = 0; j < MaxSafe.size(); j++)
+            for (int j = 0; j < arr.length; j++)
             {
                 if (j == itr)
                     continue;
                 boolean AllLessOrEqual = true;
-                String[] tokens2 = States.get(MaxSafe.get(j)).split(","); 
+                int[] tokens2 = States.get((int)arr[j]); 
                 for (int k = 0; k < p - r; k++)
                 {
-                    if(Integer.parseInt(tokens1[k]) > Integer.parseInt(tokens2[k]))
+                    if(tokens1[k] > tokens2[k])
                     {
                         AllLessOrEqual = false;
                         break;
@@ -503,24 +440,25 @@ public class RAS implements Comparable<RAS>
             }
             if(remove)
             {
-                MaxSafe.remove(itr);
+                MaxSafe.remove((int)arr[itr]);
             }
         }
 
-        for (int itr = MinUnsafe.size() - 1; itr >= 0; itr--)
+        Object[] array = MinUnsafe.toArray();
+        for (int itr = array.length - 1; itr >= 0; itr--)
         {
             boolean remove = false;
-            String[] tokens1 = States.get(MinUnsafe.get(itr)).split(",");
+            int[] tokens1 = States.get((int)array[itr]);
 
-            for (int j = 0; j < MinUnsafe.size(); j++)
+            for (int j = 0; j < array.length; j++)
             {
                 if (j == itr)
                     continue;
                 boolean AllGreaterOrEqual = true;
-                String[] tokens2 = States.get(MinUnsafe.get(j)).split(",");
+                int[] tokens2 = States.get((int)array[j]);
                 for (int k = 0; k < p - r; k++)
                 {
-                    if (Integer.parseInt(tokens1[k]) < Integer.parseInt(tokens2[k]))
+                    if (tokens1[k] < tokens2[k])
                     {
                         AllGreaterOrEqual = false;
                         break;
@@ -534,47 +472,125 @@ public class RAS implements Comparable<RAS>
             }
             if (remove)
             {
-                MinUnsafe.remove(itr);
+                MinUnsafe.remove((int)array[itr]);
             }
         }
     }
 
-//    /// <summary>
-//    /// mark one of the states to be unsafe and modify the data accordingly
-//    /// </summary>
-//    /// <param name="state"></param>
-//    public void Prune(int state)
-//    {
-//        Safe.set(state, false);
-//        //check if other states became unsafe
-//        boolean change = true;
-//        while (change)
-//        {
-//            change = false;
-//            for (int i = 0; i < States.size(); i++)
-//            {
-//                if (Safe.get(i))
-//                {
-//                    boolean allfalse = true;
-//                    for (int j = 0; j < NextStates.get(i).size(); j++)
-//                        if (Safe.get(NextStates.get(i).get(j)))
-//                        {
-//                            allfalse = false;
-//                            break;
-//                        }
-//                    if (allfalse)
-//                    {
-//                        Safe.set(i, false);
-//                        change = true;
-//                    }
-//                }
-//            }
-//        }
-//        //recalculate the max safe and min unsafe
-//        RemoveNonboundaryUnsafeStates();
-//        CalculateMaxSafe();
-//        CalculateSafeCount();
-//    }
+    /// <summary>
+    /// mark one of the states to be unsafe and modify the data accordingly
+    /// </summary>
+    /// <param name="state"></param>
+    public void Prune(int PrunedState, RAS Parent)
+    {
+        /*Safe.set(state, false);
+        //check if other states became unsafe
+        boolean change = true;
+        while (change)
+        {
+            change = false;
+            for (int i = 0; i < States.size(); i++)
+            {
+                if (Safe.get(i))
+                {
+                    boolean allfalse = true;
+                    for (int j = 0; j < NextStates.get(i).size(); j++)
+                        if (Safe.get(NextStates.get(i).get(j)))
+                        {
+                            allfalse = false;
+                            break;
+                        }
+                    if (allfalse)
+                    {
+                        Safe.set(i, false);
+                        change = true;
+                    }
+                }
+            }
+        }*/
+    	
+    	// lines 1-4 of the algorithm
+    	//The set S will contains all the states s such that s <= s'' for s'' \in \bar{S} (the maximal of the parent) except the pruned state
+       	HashSet<Integer> S = new HashSet<Integer>();
+    	for(int i = 0; i < States.size(); i++)
+    	{
+    		if(i == PrunedState)
+    			continue;
+    		
+    		int [] state = States.get(i);
+    		for(int MSstate : Parent.MaxSafe)
+    		{
+    			int[] MaxState = States.get(MSstate);
+    			boolean AllLess = true;
+    			for(int k = 0; k < p-r; k++)
+    			{
+    				if(state[k] > MaxState[k])
+    				{
+    					AllLess = false;
+    					break;
+    				}
+    			}
+    			if(AllLess)
+    			{
+    				S.add(i);
+    				break;
+    			}
+    		}
+    	}
+    	HashSet<Integer> Shat_r = new HashSet<Integer>();
+    	Shat_r.add(0);
+    	boolean change = true;
+    	while(change)
+    	{
+    		change = false;
+    		Object[] array = S.toArray();
+    		for(int i = 0; i < array.length; i++)
+    		{
+    			for(int j = 0; j < PreviousStates.get((int) array[i]).size(); j++)
+    			{
+    				if(Shat_r.contains(PreviousStates.get((int) array[i]).get(j)))
+    				{
+    					Shat_r.add((int) array[i]);
+    					S.remove((int) array[i]);
+    					change = true;
+    					break;
+    				}
+    			}
+    		}
+    	}
+    	// line 5-7 of the algorithm
+    	change = true;
+    	while(change)
+    	{
+    		change = false;
+    		Object[] array = Shat_r.toArray();
+    		for(int i = 0; i < array.length; i++)
+    		{
+        		boolean AllOut = true;
+    			for(int j = 0; j < NextStates.get((int) array[i]).size(); j++)
+    			{
+    				if(Shat_r.contains(NextStates.get((int) array[i]).get(j)))
+    				{
+    					AllOut = false;
+    					break;
+    				}
+    			}
+    			if(AllOut)
+    			{
+    				Shat_r.remove((int) array[i]);
+    				change = true;
+    			}
+    		}
+    	}
+    	for(int i = 0; i < Safe.size(); i++)
+    		Safe.set(i,  false);
+    	for(int i : Shat_r)
+    		Safe.set(i, true);
+    	// line 8 of the algorithm
+        CalculateMaxSafe(); 
+        // This calculates the number of safe states
+        CalculateSafeCount();
+    }
 
     /// <summary>
     /// check whether the maximal safe and minimal unsafe are linearly separable or not.
@@ -582,21 +598,22 @@ public class RAS implements Comparable<RAS>
     /// <returns></returns>
     public boolean LinearSpearable()
     {
-        CalculateMaxSafe();
+        //CalculateMaxSafe();
         p = p-r;
         while (MinUnsafe.size() > 0)
         {
             double[] ab = SolveMIP412();
             int totalRemoved = 0;
-            for (int i = MinUnsafe.size() - 1; i >= 0; i--)
+            Object[] array = MinUnsafe.toArray();
+            for (int i = 0; i < array.length; i++)
             {
-                String[] y = States.get(MinUnsafe.get(i)).split(",");
+                int[] y = States.get((int)array[i]);
                 double sum = 0;
                 for (int j = 0; j < p; j++)
-                    sum += ab[j] * Integer.parseInt(y[j]);
+                    sum += ab[j] * y[j];
                 if (sum > ab[p])
                 {
-                    MinUnsafe.remove(i);
+                    MinUnsafe.remove((int)array[i]);
                     totalRemoved++;
                 }
             }
@@ -610,6 +627,119 @@ public class RAS implements Comparable<RAS>
         p = p + r;
         return true;
     }
+    
+    /*public boolean LinearSpearable()
+    {
+    	p = p - r;
+        //Ahmed -- M can be set to p * max val in states
+        double M = 1000;
+        double eps = 0.0001;
+        // Solve the MIP from the file
+        try
+        {
+            IloCplex cplex = new IloCplex();
+            IloObjective modelObj = cplex.addMaximize();
+        	IloRange [][] rng = new IloRange[2][];
+        	rng[0] = new IloRange[MaxSafe.size()];
+        	rng[1] = new IloRange[MinUnsafe.size()];
+        	for (int i = 0; i < MaxSafe.size(); i++)
+        		rng[0][i] = cplex.addRange(Double.MAX_VALUE*-1,0, "Safe"+i);
+        	for (int i = 0; i < MinUnsafe.size(); i++)
+        		rng[1][i] = cplex.addRange(eps-M,Double.MAX_VALUE, "Unsafe"+i);
+        	IloNumVarArray var = new IloNumVarArray();
+        	//Hyerplane coefficients
+        	for(int j=0;j<p;j++)
+        	{
+        		 IloColumn column = cplex.column(modelObj, 0);
+        		 int itr = 0;
+        		 for (int MSsafe : MaxSafe)
+        		 {
+        			 int[] x = States.get(MSsafe);
+        			 if(x[j] != 0)
+        				 column = column.and(cplex.column(rng[0][itr], x[j]));
+        			 itr++;
+        		 }
+        		 itr = 0;
+        		 for (int MinUnsafe : MinUnsafe)
+        		 {
+        			 int[] x = States.get(MinUnsafe);
+        			 if(x[j] != 0)
+        				 column = column.and(cplex.column(rng[1][itr], x[j]));
+        			 itr++;
+        		 }
+ 	             var.add(cplex.numVar(column, 0., 1 ,"a"+j));
+        	}
+        	//Intercept
+        	IloColumn columnB = cplex.column(modelObj, 0);
+        	for (int i = 0; i < MaxSafe.size(); i++)
+        		columnB = columnB.and(cplex.column(rng[0][i], -1));
+        	for (int i = 0; i < MinUnsafe.size(); i++)
+        		columnB = columnB.and(cplex.column(rng[1][i], -1));
+        	 var.add(cplex.numVar(columnB, 0., 1 ,"b"));
+        	//Indicators for separation
+        	for (int i = 0; i < MinUnsafe.size(); i++)
+        	{
+        		IloColumn column = cplex.column(modelObj, 1);
+        		column = column.and(cplex.column(rng[1][i], -M));
+        		var.add(cplex.boolVar(column,"d"+i));
+        	}
+        	
+        	int TotalSeparated = 0;
+        	boolean change = true;
+        	List<Integer> SeparatedCoeff = new ArrayList<Integer>();
+        	for(int i = 0; i < MinUnsafe.size(); i++)
+        		SeparatedCoeff.add(1);
+        	
+            while (change)
+            {
+            	change = false;
+            	IloLinearNumExpr obj = cplex.linearNumExpr();
+            	for(int k=0; k<SeparatedCoeff.size(); k++){
+            		obj.addTerm(SeparatedCoeff.get(k), cplex.boolVar("d"+k));
+            	}
+            	modelObj.setExpr(obj);
+            	
+            	cplex.solve();
+            	double[] x = new double[p + 1];
+                for (int i = 0; i < p+1; i++)
+                {
+                	IloNumVar elem = var.getElement(i);
+                	x[i] = cplex.getValue(elem);
+                }
+                for (int i = p+1; i < p+1+MinUnsafe.size(); i++)
+                {
+                	IloNumVar elem = var.getElement(i);
+                	double d = cplex.getValue(elem);
+                	if(d == 1)
+                	{
+                		TotalSeparated++;
+                		//IloLinearNumExpr  temp = (IloLinearNumExpr) modelObj.getExpr();//.set.setExpr(modelObj.getExpr().toString().replace("+ 1.0*d" + (i-p-1), ""));
+                		//modelObj.clearExpr();
+                		//modelObj = cplex.addMaximize();
+
+                		SeparatedCoeff.set(i-p-1, 0);
+                    	change = true;
+                	}
+                }
+                if(TotalSeparated == MinUnsafe.size())
+                {
+                    cplex.end();
+                    p = p + r;
+                    return true;
+                }
+
+
+            }
+            cplex.end();
+           
+        }
+        catch (Exception e)
+        {
+            System.out.println("Concert exception caught: " + e);
+        }
+        p = p + r;
+        return false;
+    }*/
 
     public double[] SolveMIP412()
     {
@@ -633,17 +763,21 @@ public class RAS implements Comparable<RAS>
         	for(int j=0;j<p;j++)
         	{
         		 IloColumn column = cplex.column(modelObj, 0);
-        		 for (int i = 0; i < MaxSafe.size(); i++)
+        		 int itr = 0;
+        		 for (int MSsafe : MaxSafe)
         		 {
-        			 String[] x = States.get(MaxSafe.get(i)).split(",");
-        			 if(!x[j].equals("0"))
-        				 column = column.and(cplex.column(rng[0][i], Integer.parseInt(x[j])));
+        			 int[] x = States.get(MSsafe);
+        			 if(x[j] != 0)
+        				 column = column.and(cplex.column(rng[0][itr], x[j]));
+        			 itr++;
         		 }
-        		 for (int i = 0; i < MinUnsafe.size(); i++)
+        		 itr = 0;
+        		 for (int MinUnsafe : MinUnsafe)
         		 {
-        			 String[] x = States.get(MinUnsafe.get(i)).split(",");
-        			 if(!x[j].equals("0"))
-        				 column = column.and(cplex.column(rng[1][i], Integer.parseInt(x[j])));
+        			 int[] x = States.get(MinUnsafe);
+        			 if(x[j] != 0)
+        				 column = column.and(cplex.column(rng[1][itr], x[j]));
+        			 itr++;
         		 }
  	             var.add(cplex.numVar(column, 0., 1 ,"a"+j));
         	}
@@ -661,6 +795,7 @@ public class RAS implements Comparable<RAS>
         		column = column.and(cplex.column(rng[1][i], -M));
         		var.add(cplex.boolVar(column,"d"+i));
         	}
+        	
             if (cplex.solve())
             {
                 //MessageBox.Show("Solution status = " + cplex.GetStatus());
@@ -679,7 +814,7 @@ public class RAS implements Comparable<RAS>
                 	IloNumVar elem = var.getElement(i);
                 	x[i] = cplex.getValue(elem);
                 }
-
+                
                 cplex.end();
                 return x;
 
@@ -714,77 +849,27 @@ public class RAS implements Comparable<RAS>
     /// copy constructor for deep copying
     /// </summary>
     /// <param name="ras"></param>
-//    public RAS(RAS ras)
-//    {
-//        p = ras.p;
-//        r = ras.r;
-//        t = ras.t;
-//        //empyt m0 (not needed)
-//        m0 = null;
-//        //m0 = new int[p];
-//        //for (int i = 0; i < p; i++)
-//        //    m0[i] = ras.m0[i];
-//        //empty C (not needed)
-//        C = null;
-//        //C = new int[p, t];
-//        //for (int i = 0; i < p; i++)
-//        //    for (int j = 0; j < t; j++)
-//        //        C[i, j] = ras.C[i, j];///
-//
-//        States = new ArrayList<String>(ras.States);
-//        Safe = new ArrayList<Boolean>(ras.Safe);
-//        MaxSafe = new ArrayList<Integer>(ras.MaxSafe);
-//        MinUnsafe = new ArrayList<Integer>(ras.MinUnsafe);
-//        //NextStates = ras.NextStates.Select(x => x.ToList()).ToList();
-//        NextStates = new ArrayList<List<Integer>>();
-//        //empty dict (not need)
-//        StateDict.clear();// = new Dictionary<String, int>();
-//
-//    }
-
-    /// <summary>
-    /// copy constructor for deep copying that implements pruning function
-    /// </summary>
-    /// <param name="ras"></param>
-    public RAS(RAS ras, List<Integer> CH, int itr)
+    public RAS(RAS ras)
     {
         p = ras.p;
         r = ras.r;
         t = ras.t;
-        m0 = new int[p];
-        for (int i = 0; i < p; i++)
-            m0[i] = ras.m0[i];
-        C = new int[p][t];
-        for (int i = 0; i < p; i++)
-        {
-            for (int j = 0; j < t; j++)
-                C[i][j] = ras.C[i][j];
-        }
-        
-        for(int i = 0; i < ras.ConflictStages.size(); i++)
-        {
-        	List<Integer> temp = new ArrayList<Integer>(ras.ConflictStages.get(i));
-        	ConflictStages.add(temp);
-        }
+        //empyt m0 (not needed)
+        m0 = null;
+        C = null;
 
-        List<String> temp = new ArrayList<String>(ras.States);
-        temp.remove((int)CH.get(itr));
-        CalculateReachableStates(temp);        
-        CalculateReachableSafeStates();
-        RemoveNonboundaryUnsafeStates();
-        CalculateMaxSafe();
-        CalculateSafeCount();
-        
-        for(int i = 0; i < CH.size(); i++)
-        {
-        	int index = States.indexOf(ras.States.get((int) CH.get(i)));
-        	if(index >= 0)
-        	{
-        		ConvexHullStates.add(index);
-        	}
-        }
+        States = new ArrayList<int[]>(ras.States);
+        Safe = new ArrayList<Boolean>(ras.Safe);
+        MaxSafe = new HashSet<Integer>();//ras.MaxSafe
+        MinUnsafe = new HashSet<Integer>();//ras.MinUnsafe
+        //NextStates = ras.NextStates.Select(x => x.ToList()).ToList();
+        NextStates = new ArrayList<List<Integer>>(ras.NextStates);
+        PreviousStates = new ArrayList<List<Integer>>(ras.PreviousStates);
+        //empty dict (not need)
+        StateDict.clear();// = new Dictionary<String, int>();
 
     }
+
 
 	@Override
 	public int compareTo(RAS arg0) {
