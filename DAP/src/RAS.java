@@ -864,12 +864,12 @@ public class RAS implements Comparable<RAS>
 
         //Ahmed Copy constructor for RAS: no need to create new lists
         States = parentRAS.States;
-        Safe = parentRAS.Safe;
+        
         NextStates = parentRAS.NextStates;
         PreviousStates = parentRAS.PreviousStates;
         StateDict = parentRAS.StateDict;
         
-        
+        Safe = new ArrayList<Boolean>(parentRAS.Safe);
         MaxSafe = new HashSet<Integer>();//ras.MaxSafe
         MinUnsafe = new HashSet<Integer>();//ras.MinUnsafe
         //NextStates = ras.NextStates.Select(x => x.ToList()).ToList();
