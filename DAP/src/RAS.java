@@ -196,9 +196,12 @@ public class RAS implements Comparable<RAS>
             //0- Initialize the next states
             List<Integer> next = new ArrayList<Integer>();
             //1- Get the state that you want to explore
+            //Ahmed -- No need to allocate and copy another array
+            int [] s = States.get(currentState);
+            /*
             int[] s = new int[p];
             for (int i = 0; i < p; i++)
-                s[i] = States.get(currentState)[i];
+                s[i] = States.get(currentState)[i];*/
             //2- Make sure that the state doesn't have any stage conflict
             boolean conflict = false;
             for (int j = 0; j < ConflictStages.size(); j++)
@@ -228,12 +231,15 @@ public class RAS implements Comparable<RAS>
                     }
                     if (reachable)
                     {
-                        if (!StateDict.containsKey(join(",", m)))
+                    	//Ahmed -- No need to call join multiple times
+                    	String str_m = join(",", m);
+                        if (!StateDict.containsKey(str_m))
                         {
-                            StateDict.put(join(",", m), States.size());
+                            StateDict.put(str_m, States.size());
                             States.add(m);
                         }
-                        next.add(StateDict.get(join(",", m)));
+                        //Ahmed No need to call the hashmap
+                        next.add(States.size()-1);
                     }
                 }
             }
@@ -829,9 +835,7 @@ public class RAS implements Comparable<RAS>
         return new double[p + 1];
     }
 
-    public RAS()
-    { 
-    }
+   
     
     public RAS(String pn)
     {
@@ -849,24 +853,30 @@ public class RAS implements Comparable<RAS>
     /// copy constructor for deep copying
     /// </summary>
     /// <param name="ras"></param>
-    public RAS(RAS ras)
+    public RAS(RAS parentRAS)
     {
-        p = ras.p;
-        r = ras.r;
-        t = ras.t;
+        p = parentRAS.p;
+        r = parentRAS.r;
+        t = parentRAS.t;
         //empyt m0 (not needed)
         m0 = null;
         C = null;
 
-        States = new ArrayList<int[]>(ras.States);
-        Safe = new ArrayList<Boolean>(ras.Safe);
+        //Ahmed Copy constructor for RAS: no need to create new lists
+        States = parentRAS.States;
+        Safe = parentRAS.Safe;
+        NextStates = parentRAS.NextStates;
+        PreviousStates = parentRAS.PreviousStates;
+        StateDict = parentRAS.StateDict;
+        
+        
         MaxSafe = new HashSet<Integer>();//ras.MaxSafe
         MinUnsafe = new HashSet<Integer>();//ras.MinUnsafe
         //NextStates = ras.NextStates.Select(x => x.ToList()).ToList();
-        NextStates = new ArrayList<List<Integer>>(ras.NextStates);
-        PreviousStates = new ArrayList<List<Integer>>(ras.PreviousStates);
+       
+        
         //empty dict (not need)
-        StateDict.clear();// = new Dictionary<String, int>();
+       
 
     }
 
