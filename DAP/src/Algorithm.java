@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Stack;
 
-import java.io.Writer;
+//import java.io.Writer;
 
 class Algorithm
 {
@@ -25,15 +25,15 @@ class Algorithm
     /// <returns></returns>
     public Boolean RASinRAS(RAS ras1, RAS ras2)
     {
-    	int p = ras1.p - ras1.r;
+    	int p = RAS.p - RAS.r;
         for(int i : ras2.MaxSafe)
         {
         	boolean AnyGreater = false;
-        	int[] ras2Max = ras2.States.get(i);
+        	int[] ras2Max = RAS.States.get(i);
         	for(int j : ras1.MaxSafe)
         	{
         		boolean ThisGreater = true;
-            	int[] ras1Max = ras1.States.get(j);
+            	int[] ras1Max = RAS.States.get(j);
         		for(int k = 0; k < p; k++)
         		{
         			if(ras2Max[k] > ras1Max[k])
@@ -87,7 +87,7 @@ class Algorithm
     	return res;
     }
 
-    public void WriteMaximalRAS(int pn, int numExplored, List<RAS> MaximalPolicies)
+    public void WriteMaximalRAS(int pn, int numExplored, List<RAS> MaximalPolicies, Stack<RAS> Explore)
     {
     	try
     	{
@@ -108,17 +108,37 @@ class Algorithm
 	            {
 	                writer.write("" + i);
 	                writer.newLine();
-	                for (int itr = 0; itr < MaximalPolicies.get(i).States.size(); itr++)
+	                MaximalPolicies.get(i);
+					for (int itr = 0; itr < RAS.States.size(); itr++)
 	                {
 	                    if (MaximalPolicies.get(i).Safe.get(itr))
 	                    {
-	                        writer.write(join(",", MaximalPolicies.get(i).States.get(itr)) );
+	                        writer.write(join(",", RAS.States.get(itr)) );
 	                        writer.newLine();
 	                    }
 	                }
 	            }
 	        }
 	        writer.close();
+	        writer = new BufferedWriter(new OutputStreamWriter
+	        		(new FileOutputStream(path + "Maximal DAP Stack " + pn + ".txt")));
+            writer.write("" + Explore.size());
+            writer.newLine();
+            int index = 0;
+            for(RAS policy: Explore)
+            {
+            	writer.write("" + index++);
+            	writer.newLine();
+                for (int itr = 0; itr < RAS.States.size(); itr++)
+                {
+                    if (policy.Safe.get(itr))
+                    {
+                        writer.write(join(",", RAS.States.get(itr)) );
+                        writer.newLine();
+                    }
+                }
+            }
+            writer.close();
     	}
     	catch(Exception e)
     	{
@@ -130,18 +150,18 @@ class Algorithm
     public void SolvePNMax()
     {
     	/*RAS ras = new RAS();
-        ras.p = 4;
-        ras.r = 2;
-        ras.t = 4;
-        ras.m0 = new int[ras.p]; ras.m0[0] = 0; ras.m0[1] = 0; ras.m0[2] = 3; ras.m0[3] = 3;
-        ras.C = new int[ras.p][ras.t];
-        ras.C[0][0] = -1; ras.C[1][0] = 0; ras.C[2][0] = 1; ras.C[3][0] = 0;
-        ras.C[0][1] = 0; ras.C[1][1] = -1; ras.C[2][1] = 0; ras.C[3][1] = 1;
-        ras.C[0][2] = 1; ras.C[1][2] = 0; ras.C[2][2] = -1; ras.C[3][2] = 0;
-        ras.C[0][3] = 0; ras.C[1][3] = 1; ras.C[2][3] = 0; ras.C[3][3] = -1;
+        RAS.p = 4;
+        RAS.r = 2;
+        RAS.t = 4;
+        RAS.m0 = new int[RAS.p]; RAS.m0[0] = 0; RAS.m0[1] = 0; RAS.m0[2] = 3; RAS.m0[3] = 3;
+        RAS.C = new int[RAS.p][RAS.t];
+        RAS.C[0][0] = -1; RAS.C[1][0] = 0; RAS.C[2][0] = 1; RAS.C[3][0] = 0;
+        RAS.C[0][1] = 0; RAS.C[1][1] = -1; RAS.C[2][1] = 0; RAS.C[3][1] = 1;
+        RAS.C[0][2] = 1; RAS.C[1][2] = 0; RAS.C[2][2] = -1; RAS.C[3][2] = 0;
+        RAS.C[0][3] = 0; RAS.C[1][3] = 1; RAS.C[2][3] = 0; RAS.C[3][3] = -1;
         
         List<Integer> next = new ArrayList<Integer>(); next.add(0); next.add(1);
-        ras.ConflictStages.add(next);
+        RAS.ConflictStages.add(next);
         
         ras.CalculateReachableStates();        
         ras.CalculateReachableSafeStates();
@@ -150,11 +170,11 @@ class Algorithm
         ras.CalculateSafeCount();*/
     	
         int linearcount = 0;
-        for (int pn = 1; pn <= 1; pn++)
+        for (int pn = 5; pn <= 5; pn++)
         {
             //Create a RAS from PN file
-            //RAS ras = new RAS(path + "pn" + pn + ".txt");
-            RAS ras = new RAS(path + "PT222");
+            RAS ras = new RAS(path + "pn" + pn + ".txt");
+            //RAS ras = new RAS(path + "PT222");
 
 
             List<RAS> MaximalPolicies = new ArrayList<RAS>();
@@ -165,29 +185,23 @@ class Algorithm
             {
                 numExplored++;
                 RAS current = Explore.poll();
-                if (!RASinPolicies(MaximalPolicies, current))
+                if (current.LinearSpearable())
                 {
-                    if (current.LinearSpearable())
+                    MaximalPolicies.add(current);
+                    break;
+                }
+                else
+                {
+                    List<Integer> CH = current.ConvexHull(); //new List<int>(current.MaxSafe);
+                    for (int i = 0; i < CH.size(); i++)
                     {
-                        MaximalPolicies.add(current);
-                        break;
-                    }
-                    else
-                    {
-                        List<Integer> CH = current.ConvexHull(); //new List<int>(current.MaxSafe);
-
-                        for (int i = 0; i < CH.size(); i++)
-                        {
-                        	RAS newras = new RAS(current);
-                        	newras.Prune(CH.get(i), current);
-                            //newras.Prune(CH.get(i));
-                            
-                            Explore.add(newras);
-                        }
+                    	RAS newras = new RAS(current);
+                      	newras.Prune(CH.get(i), current);
+                        Explore.add(newras);
                     }
                 }
             }
-            WriteMaximalRAS(pn, numExplored, MaximalPolicies);
+            WriteMaximalRAS(pn, numExplored, MaximalPolicies, new Stack<RAS>());
             if (numExplored == 1)
                 linearcount++;
             else
@@ -226,11 +240,68 @@ class Algorithm
             RAS ras = new RAS(path + "pn" + pn + ".txt");
             
         	//RAS ras = new RAS(path + "PT222");
-
+        	
 
             List<RAS> MaximalPolicies = new ArrayList<RAS>();
             Stack<RAS> Explore = new Stack<RAS>();
-            Explore.push(ras);
+
+        	//read the current maximal policies
+            try
+            {
+    	    	BufferedReader reader = new BufferedReader(new FileReader(path + "Maximal DAP - PT222.txt"));
+    	    	int count = Integer.parseInt(reader.readLine());
+    	    	for(int i = 0; i < count; i++)
+    	    	{
+    	    		RAS temp = new RAS(ras);
+    	    		for(int j = 0; j < RAS.States.size(); j++)
+    	    		{
+    	    			temp.Safe.set(j, false);
+    	    		}
+    	    		String line = reader.readLine();
+    	            while ((line = reader.readLine()) != null)
+    	            {
+    	                if(!line.contains(","))
+    	                	break;
+    	                int StateIndex = RAS.StateDict.get(line);
+    	                temp.Safe.set(StateIndex, true);
+    	            }
+    	            temp.CalculateMaxSafe();
+    	            temp.CalculateSafeCount();
+    	            MaximalPolicies.add(temp);
+    	    	}
+    	    	reader.close();
+            }
+            catch(Exception e) {}
+            //  Read the current stack
+            try
+            {
+    	    	BufferedReader reader = new BufferedReader(new FileReader(path + "Maximal DAP Stack - PT222.txt"));
+    	    	int count = Integer.parseInt(reader.readLine());
+    	    	for(int i = 0; i < count; i++)
+    	    	{
+    	    		RAS temp = new RAS(ras);
+    	    		for(int j = 0; j < RAS.States.size(); j++)
+    	    		{
+    	    			temp.Safe.set(j, false);
+    	    		}
+    	    		String line = reader.readLine();
+    	            while ((line = reader.readLine()) != null)
+    	            {
+    	                if(!line.contains(","))
+    	                	break;
+    	                int StateIndex = RAS.StateDict.get(line);
+    	                temp.Safe.set(StateIndex, true);
+    	            }
+    	            temp.CalculateMaxSafe();
+    	            temp.CalculateSafeCount();
+    	            Explore.push(temp);
+    	    	}
+    	    	reader.close();
+            }
+            catch(Exception e) {}
+            
+            
+            //Explore.push(ras);
             int numExplored = 0;
             while (Explore.size() > 0)
             {
@@ -257,10 +328,13 @@ class Algorithm
                     }
                 }
                 if(numExplored % 5000 == 4999)
-                	WriteMaximalRAS(pn, numExplored, MaximalPolicies);
+                {
+                	System.out.println("The algorithm has explored " + numExplored + " subspaces, and there is " + Explore.size() + " subspaces in stack");
+                	WriteMaximalRAS(pn, numExplored, MaximalPolicies, Explore);
+                }
                 
             }
-            WriteMaximalRAS(pn, numExplored, MaximalPolicies);
+            WriteMaximalRAS(pn, numExplored, MaximalPolicies, Explore);
             if (numExplored == 1)
                 linearcount++;
         }
