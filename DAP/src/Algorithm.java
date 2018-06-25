@@ -4,8 +4,10 @@ import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.PriorityQueue;
+import java.util.Queue;
 import java.util.Stack;
 
 //import java.io.Writer;
@@ -173,11 +175,12 @@ class Algorithm
         for (int pn = 5; pn <= 5; pn++)
         {
             //Create a RAS from PN file
-            RAS ras = new RAS(path + "pn" + pn + ".txt");
-            //RAS ras = new RAS(path + "PT222");
+            //RAS ras = new RAS(path + "pn" + pn + ".txt");
+            RAS ras = new RAS(path + "PT222");
 
 
             List<RAS> MaximalPolicies = new ArrayList<RAS>();
+            //Queue<RAS> Explore = new LinkedList<>();
             PriorityQueue<RAS> Explore = new PriorityQueue<RAS>();
             Explore.add(ras);
             int numExplored = 0;
@@ -197,8 +200,14 @@ class Algorithm
                     {
                     	RAS newras = new RAS(current);
                       	newras.Prune(CH.get(i), current);
+                      	//if(newras.safeCount >= 103)
                         Explore.add(newras);
                     }
+                }
+
+                if(numExplored % 5000 == 4999)
+                {
+                	System.out.println("The algorithm has explored " + numExplored + " subspaces, and there is " + Explore.size() + " subspaces in stack");
                 }
             }
             WriteMaximalRAS(pn, numExplored, MaximalPolicies, new Stack<RAS>());
@@ -216,17 +225,17 @@ class Algorithm
     public void SolvePN()
     {
         /*RAS ras = new RAS();
-        ras.p = 4;
-        ras.r = 2;
-        ras.t = 4;
-        ras.m0 = new int[ras.p]; ras.m0[0] = 0; ras.m0[1] = 0; ras.m0[2] = 3; ras.m0[3] = 3;
-        ras.C = new int[ras.p][ras.t];
-        ras.C[0][0] = -1; ras.C[1][0] = 0; ras.C[2][0] = 1; ras.C[3][0] = 0;
-        ras.C[0][1] = 0; ras.C[1][1] = -1; ras.C[2][1] = 0; ras.C[3][1] = 1;
-        ras.C[0][2] = 1; ras.C[1][2] = 0; ras.C[2][2] = -1; ras.C[3][2] = 0;
-        ras.C[0][3] = 0; ras.C[1][3] = 1; ras.C[2][3] = 0; ras.C[3][3] = -1;
+        RAS.p = 4;
+        RAS.r = 2;
+        RAS.t = 4;
+        RAS.m0 = new int[RAS.p]; RAS.m0[0] = 0; RAS.m0[1] = 0; RAS.m0[2] = 3; RAS.m0[3] = 3;
+        RAS.C = new int[RAS.p][ras.t];
+        RAS.C[0][0] = -1; RAS.C[1][0] = 0; RAS.C[2][0] = 1; RAS.C[3][0] = 0;
+        RAS.C[0][1] = 0; RAS.C[1][1] = -1; RAS.C[2][1] = 0; RAS.C[3][1] = 1;
+        RAS.C[0][2] = 1; RAS.C[1][2] = 0; RAS.C[2][2] = -1; RAS.C[3][2] = 0;
+        RAS.C[0][3] = 0; RAS.C[1][3] = 1; RAS.C[2][3] = 0; RAS.C[3][3] = -1;
         List<Integer> next = new ArrayList<Integer>(); next.add(0); next.add(1);
-        ras.ConflictStages.add(next);
+        RAS.ConflictStages.add(next);
         ras.CalculateReachableStates();
         ras.CalculateReachableSafeStates();
         ras.RemoveNonboundaryUnsafeStates();
@@ -237,7 +246,7 @@ class Algorithm
         for (int pn = 1; pn <= 1; pn++)
         {
             //Create a RAS from PN file
-            RAS ras = new RAS(path + "pn" + pn + ".txt");
+            //RAS ras = new RAS(path + "pn" + pn + ".txt");
             
         	//RAS ras = new RAS(path + "PT222");
         	
@@ -246,7 +255,7 @@ class Algorithm
             Stack<RAS> Explore = new Stack<RAS>();
 
         	//read the current maximal policies
-            try
+            /*try
             {
     	    	BufferedReader reader = new BufferedReader(new FileReader(path + "Maximal DAP - PT222.txt"));
     	    	int count = Integer.parseInt(reader.readLine());
@@ -298,17 +307,17 @@ class Algorithm
     	    	}
     	    	reader.close();
             }
-            catch(Exception e) {}
+            catch(Exception e) {}*/
             
-            
-            //Explore.push(ras);
+            RAS ras = new RAS(path + "PT222");
+            Explore.push(ras);
             int numExplored = 0;
             while (Explore.size() > 0)
             {
                 numExplored++;
                 RAS current = Explore.pop();
                 if (!RASinPolicies(MaximalPolicies, current))
-                {
+                {	
                     if (current.LinearSpearable())
                     {
                         MaximalPolicies = AddRASToPolicies(MaximalPolicies, current);
