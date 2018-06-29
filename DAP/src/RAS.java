@@ -34,7 +34,8 @@ public class RAS implements Comparable<RAS>
     public HashSet<Integer> MaxSafe = new HashSet<Integer>();
     public HashSet<Integer> MinBoundaryUnsafe = new HashSet<Integer>();
     //public HashSet<Integer> BoundaryUnsafe = new HashSet<Integer>();
-    public HashSet <Integer> ParentConvexHullStates = new HashSet <Integer>();
+    public HashSet <Integer> myConvexHullStates = new HashSet <Integer>();
+    public HashSet <Integer> parentConvexHullStates = null;
     public static List<HashSet<Integer>> NextStates = new ArrayList<HashSet<Integer>>();
     public static List<HashSet<Integer>> PreviousStates = new ArrayList<HashSet<Integer>>();
     public static Map<String, Integer> StateDict = new HashMap<String, Integer>();
@@ -53,8 +54,9 @@ public class RAS implements Comparable<RAS>
     	p = p - r;
     	List<Integer> points = new ArrayList<Integer>();
         List<Integer> SafeIDX = new ArrayList<Integer>();
-        int NumberOfVertices = MaxSafe.size() + 1;
-        SafeIDX.add(0);
+        int NumberOfVertices = MaxSafe.size()/* + 1*/;
+        //Why do we need zero
+        //SafeIDX.add(0);
         for (int i : MaxSafe)
         {
         	SafeIDX.add(i);
@@ -71,7 +73,7 @@ public class RAS implements Comparable<RAS>
         {
             // If the maximal state is on the convex hull of the states before pruning
             // then, it is on the convex hull of the states after pruning.
-            if(ParentConvexHullStates.contains(MSstate))
+            if(parentConvexHullStates != null && parentConvexHullStates.contains(MSstate))
             {
             	points.add(MSstate);
             	continue;
@@ -105,7 +107,7 @@ public class RAS implements Comparable<RAS>
      	            column = column.and(cplex.column(rng[p], 1));
      	            var.add(cplex.numVar(column, 0., 1 ,"h"+i));
             	}
-            	
+            	//cplex.exportModel("convex"+Integer.toString(itr1)+".lp");
                 if (cplex.solve())
                 {
                 	double objective = cplex.getObjValue();
@@ -123,7 +125,7 @@ public class RAS implements Comparable<RAS>
 
         }
 
-        ParentConvexHullStates.addAll(points);
+        myConvexHullStates.addAll(points);
         p = p + r;
         return points;
     }
@@ -590,37 +592,19 @@ public class RAS implements Comparable<RAS>
     public void Prune(int PrunedState, RAS Parent)
     {
     	// lines 1-4 of the algorithm
-    	//The set S will contains all the states s such that s <= s'' for s'' \in \bar{S} (the maximal of the parent) except the pruned state
+    	//The set S will contains all the states s such that
+    	//s <= s'' for s'' \in \bar{S} (the maximal of the parent) except the pruned state
     	Safe.set(PrunedState, false);
-    	HashSet<Integer> S = new HashSet<Integer>();
+    	HashSet<Integer> Shat_r = new HashSet<Integer>();
     	for(int i = 0; i < Safe.size() ;i++)
     		if(Safe.get(i))
-    			S.add(i);
+    			Shat_r.add(i);
 
-    	HashSet<Integer> Shat_r = new HashSet<Integer>();
+    	
     	
     	Stack<Integer> Explore = new Stack<Integer>();
     	HashSet<Integer> Tested = new HashSet<Integer>();
-    	Explore.add(0);
-    	while(Explore.size() > 0)
-    	{
-    		int current = Explore.pop();
-    		for(int topush : RAS.NextStates.get(current))
-    		{
-    			if(S.contains(topush))
-    			{
-    				if(!Tested.contains(topush))
-    				{
-    					Shat_r.add(topush);
-    					Explore.add(topush);
-    					Tested.add(topush);
-    				}
-    			}
-    			
-    		}
-    	}
     	
-
     	// line 5-7 of the algorithm
     	HashSet<Integer> Shat_rs = new HashSet<Integer>();
     	Tested.clear();
@@ -649,6 +633,11 @@ public class RAS implements Comparable<RAS>
     		Safe.set(i, true);
     	// line 8 of the algorithm
         CalculateMaxSafe(Parent); 
+       /* System.out.println("Number of reachable safe states before pruning "+Shat_r.size());
+        System.out.println("Number of reachable safe states after pruning "+Shat_rs.size());
+        System.out.println("Number of maximal safe states "+MaxSafe.size());
+        System.out.println("Number of minimal unsafe states "+MinBoundaryUnsafe.size());
+        printStates2();*/
         // This calculates the number of safe states
         CalculateSafeCount();
     }
@@ -721,6 +710,7 @@ public class RAS implements Comparable<RAS>
         	for(int i = 0; i < MinBoundaryUnsafe.size(); i++)
         		SeparatedCoeff.add(1);
         	
+        	int numIter = 0;
             while (change)
             {
             	change = false;
@@ -738,8 +728,9 @@ public class RAS implements Comparable<RAS>
             	
             	//modelObj = cplex.addMaximize(obj);
             	//cplex.setLinearCoef(modelObj, obj);
-            	
+            	cplex.exportModel("Linear"+numIter+".lp");
             	cplex.solve();
+            	
             	double[] x = new double[p + 1];
                 for (int i = 0; i < p+1; i++)
                 {
@@ -750,7 +741,7 @@ public class RAS implements Comparable<RAS>
                 {
                 	IloNumVar elem = var.getElement(i);
                 	double d = cplex.getValue(elem);
-                	if((SeparatedCoeff.get(i-p-1) == 1) && (d == 1))
+                	if((SeparatedCoeff.get(i-p-1) == 1) && (d > 0.99))
                 	{
                 		TotalSeparated++;
                 		SeparatedCoeff.set(i-p-1, 0);
@@ -764,7 +755,7 @@ public class RAS implements Comparable<RAS>
                     return true;
                 }
 
-
+                numIter++;
             }
             cplex.end();
            
@@ -787,10 +778,78 @@ public class RAS implements Comparable<RAS>
         // 
         CalculateReachableStates();        
         CalculateReachableSafeStates();
-        RemoveNonboundaryUnsafeStates();
+        //RemoveNonboundaryUnsafeStates();
         CalculateMaxSafe();
         //ConvexHull();
         CalculateSafeCount();
+        System.out.println("Number of reachable safe states "+this.safeCount);
+        System.out.println("Number of maximal safe states "+MaxSafe.size());
+        System.out.println("Number of minimal unsafe states "+MinBoundaryUnsafe.size());
+        System.out.println("Dim = "+(p-r));
+        //printStates();
+    }
+    void printStates()
+    {
+    	System.out.println("All States");
+    	System.out.println("*************");
+    	for(int i=0;i<States.size();i++)
+    	{
+    		int [] x = States.get(i);
+    		System.out.print(i+" : ");
+    		for(int j=0;j<p-r;j++)
+    			System.out.print(x[j]+",");
+    		System.out.print(" || ");
+    		if(this.Safe.get(i))
+    			System.out.print(" Safe ");
+    		else
+    			System.out.print(" Unsafe ");
+    		System.out.print(" || ");
+    		if(this.MaxSafe.contains(i))
+    			System.out.print(" Max Safe ");
+    		if(this.MinBoundaryUnsafe.contains(i))
+    			System.out.print(" Min Unsafe ");
+    		
+    		System.out.println("");
+    	}
+    	System.out.println("Reachability");
+    	System.out.println("*************");
+    	for(int i=0;i<States.size();i++)
+    	{
+    		System.out.print(i+"-->");
+    		for(int j : NextStates.get(i))
+    			System.out.print(j+",");
+    		System.out.println("");
+    	}
+    	System.out.println("");
+    }
+    void printStates2()
+    {
+    	System.out.println("Maximal safe");
+    	System.out.println("*************");
+    	for(int i=0;i<States.size();i++)
+    	{
+    		if(!this.MaxSafe.contains(i))
+    			continue;
+    		int [] x = States.get(i);
+    		System.out.print(i+" : ");
+    		for(int j=0;j<p-r;j++)
+    			System.out.print(x[j]+",");
+    		System.out.println("");
+    	}
+    	
+    	System.out.println("Minimal unsafe");
+    	System.out.println("*************");
+    	for(int i=0;i<States.size();i++)
+    	{
+    		if(!this.MinBoundaryUnsafe.contains(i))
+    			continue;
+    		int [] x = States.get(i);
+    		System.out.print(i+" : ");
+    		for(int j=0;j<p-r;j++)
+    			System.out.print(x[j]+",");
+    		System.out.println("");
+    	}
+    	
     }
 
     /// <summary>
@@ -806,7 +865,7 @@ public class RAS implements Comparable<RAS>
         Safe = new ArrayList<Boolean>(ras.Safe);
         MaxSafe = new HashSet<Integer>();//ras.MaxSafe
         MinBoundaryUnsafe = new HashSet<Integer>();//ras.MinUnsafe
-        
+        parentConvexHullStates = ras.myConvexHullStates;
 
     }
 

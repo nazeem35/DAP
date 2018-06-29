@@ -3,8 +3,8 @@
 
 class Solution
 {
-    static Algorithm a = new Algorithm("C:\\Users\\Michael\\Desktop\\Linear DAP\\Unseparable\\");
-    //static Algorithm a = new Algorithm("/Users/ahmednazeem/Documents/PT/");
+    //static Algorithm a = new Algorithm("C:\\Users\\Michael\\Desktop\\Linear DAP\\Unseparable\\");
+    static Algorithm a = new Algorithm("/Users/ahmednazeem/Documents/PT/");
     
     public static void main(String[] args)
     {

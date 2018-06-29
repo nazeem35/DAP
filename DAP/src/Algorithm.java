@@ -309,7 +309,7 @@ class Algorithm
             }
             catch(Exception e) {}*/
             
-            RAS ras = new RAS(path + "PT222");
+            RAS ras = new RAS(path + "pn9.txt");
             Explore.push(ras);
             int numExplored = 0;
             while (Explore.size() > 0)
@@ -321,6 +321,7 @@ class Algorithm
                     if (current.LinearSpearable())
                     {
                         MaximalPolicies = AddRASToPolicies(MaximalPolicies, current);
+                        System.out.println("A linear policy was found");
                     }
                     else
                     {
@@ -333,9 +334,14 @@ class Algorithm
 
                             if (!RASinPolicies(MaximalPolicies, newras))
                             	Explore.push(newras);
+                            else
+                            	System.out.println("A policy was found redundant 1");
                         }
                     }
+                    
                 }
+                else
+                	System.out.println("A policy was found redundant 2");
                 if(numExplored % 5000 == 4999)
                 {
                 	System.out.println("The algorithm has explored " + numExplored + " subspaces, and there is " + Explore.size() + " subspaces in stack");
