@@ -728,7 +728,7 @@ public class RAS implements Comparable<RAS>
             	
             	//modelObj = cplex.addMaximize(obj);
             	//cplex.setLinearCoef(modelObj, obj);
-            	cplex.exportModel("Linear"+numIter+".lp");
+            	//cplex.exportModel("Linear"+numIter+".lp");
             	cplex.solve();
             	
             	double[] x = new double[p + 1];
@@ -851,6 +851,21 @@ public class RAS implements Comparable<RAS>
     	}
     	
     }
+    void printMaxSafe()
+    {
+    	System.out.println("Maximal safe");
+    	System.out.println("*************");
+    	for(int i=0;i<States.size();i++)
+    	{
+    		if(!this.MaxSafe.contains(i))
+    			continue;
+    		int [] x = States.get(i);
+    		System.out.print(i+" : ");
+    		for(int j=0;j<p-r;j++)
+    			System.out.print(x[j]+",");
+    		System.out.println("");
+    	}
+    }
 
     /// <summary>
     /// copy constructor for deep copying
@@ -872,7 +887,7 @@ public class RAS implements Comparable<RAS>
 
 	@Override
 	public int compareTo(RAS arg0) {
-		return Integer.compare(arg0.safeCount, this.safeCount);
+		return Integer.compare(arg0.MaxSafe.size(), this.MaxSafe.size());
 	}
 
    

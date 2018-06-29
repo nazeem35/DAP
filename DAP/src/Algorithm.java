@@ -4,10 +4,12 @@ import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Queue;
+import java.util.Set;
 import java.util.Stack;
 
 //import java.io.Writer;
@@ -78,14 +80,14 @@ class Algorithm
         return policies;
     }
     
-    String join(String sep,int [] arr)
+    String join(String sep,int [] arr,int len)
     {
     	String res = "";
-    	for(int i=0;i<arr.length-1;i++)
+    	for(int i=0;i<len-1;i++)
     	{
     		res += arr[i]+sep;
     	}
-    	res += arr[arr.length-1];
+    	res += arr[len-1];
     	return res;
     }
 
@@ -113,9 +115,9 @@ class Algorithm
 	                MaximalPolicies.get(i);
 					for (int itr = 0; itr < RAS.States.size(); itr++)
 	                {
-	                    if (MaximalPolicies.get(i).Safe.get(itr))
+	                    if (MaximalPolicies.get(i).MaxSafe.contains(itr))
 	                    {
-	                        writer.write(join(",", RAS.States.get(itr)) );
+	                        writer.write(itr+" : "+join(",", RAS.States.get(itr),RAS.p-RAS.r) );
 	                        writer.newLine();
 	                    }
 	                }
@@ -135,7 +137,7 @@ class Algorithm
                 {
                     if (policy.Safe.get(itr))
                     {
-                        writer.write(join(",", RAS.States.get(itr)) );
+                        writer.write(join(",", RAS.States.get(itr),RAS.p-RAS.r) );
                         writer.newLine();
                     }
                 }
@@ -224,104 +226,41 @@ class Algorithm
     
     public void SolvePN()
     {
-        /*RAS ras = new RAS();
-        RAS.p = 4;
-        RAS.r = 2;
-        RAS.t = 4;
-        RAS.m0 = new int[RAS.p]; RAS.m0[0] = 0; RAS.m0[1] = 0; RAS.m0[2] = 3; RAS.m0[3] = 3;
-        RAS.C = new int[RAS.p][ras.t];
-        RAS.C[0][0] = -1; RAS.C[1][0] = 0; RAS.C[2][0] = 1; RAS.C[3][0] = 0;
-        RAS.C[0][1] = 0; RAS.C[1][1] = -1; RAS.C[2][1] = 0; RAS.C[3][1] = 1;
-        RAS.C[0][2] = 1; RAS.C[1][2] = 0; RAS.C[2][2] = -1; RAS.C[3][2] = 0;
-        RAS.C[0][3] = 0; RAS.C[1][3] = 1; RAS.C[2][3] = 0; RAS.C[3][3] = -1;
-        List<Integer> next = new ArrayList<Integer>(); next.add(0); next.add(1);
-        RAS.ConflictStages.add(next);
-        ras.CalculateReachableStates();
-        ras.CalculateReachableSafeStates();
-        ras.RemoveNonboundaryUnsafeStates();
-        ras.CalculateMaxSafe();
-        ras.CalculateSafeCount();*/
-        
+       
         int linearcount = 0;
+        long startTime = System.currentTimeMillis();
         for (int pn = 1; pn <= 1; pn++)
         {
-            //Create a RAS from PN file
-            //RAS ras = new RAS(path + "pn" + pn + ".txt");
-            
-        	//RAS ras = new RAS(path + "PT222");
-        	
+           
 
             List<RAS> MaximalPolicies = new ArrayList<RAS>();
             Stack<RAS> Explore = new Stack<RAS>();
 
-        	//read the current maximal policies
-            /*try
-            {
-    	    	BufferedReader reader = new BufferedReader(new FileReader(path + "Maximal DAP - PT222.txt"));
-    	    	int count = Integer.parseInt(reader.readLine());
-    	    	for(int i = 0; i < count; i++)
-    	    	{
-    	    		RAS temp = new RAS(ras);
-    	    		for(int j = 0; j < RAS.States.size(); j++)
-    	    		{
-    	    			temp.Safe.set(j, false);
-    	    		}
-    	    		String line = reader.readLine();
-    	            while ((line = reader.readLine()) != null)
-    	            {
-    	                if(!line.contains(","))
-    	                	break;
-    	                int StateIndex = RAS.StateDict.get(line);
-    	                temp.Safe.set(StateIndex, true);
-    	            }
-    	            temp.CalculateMaxSafe();
-    	            temp.CalculateSafeCount();
-    	            MaximalPolicies.add(temp);
-    	    	}
-    	    	reader.close();
-            }
-            catch(Exception e) {}
-            //  Read the current stack
-            try
-            {
-    	    	BufferedReader reader = new BufferedReader(new FileReader(path + "Maximal DAP Stack - PT222.txt"));
-    	    	int count = Integer.parseInt(reader.readLine());
-    	    	for(int i = 0; i < count; i++)
-    	    	{
-    	    		RAS temp = new RAS(ras);
-    	    		for(int j = 0; j < RAS.States.size(); j++)
-    	    		{
-    	    			temp.Safe.set(j, false);
-    	    		}
-    	    		String line = reader.readLine();
-    	            while ((line = reader.readLine()) != null)
-    	            {
-    	                if(!line.contains(","))
-    	                	break;
-    	                int StateIndex = RAS.StateDict.get(line);
-    	                temp.Safe.set(StateIndex, true);
-    	            }
-    	            temp.CalculateMaxSafe();
-    	            temp.CalculateSafeCount();
-    	            Explore.push(temp);
-    	    	}
-    	    	reader.close();
-            }
-            catch(Exception e) {}*/
+        	
             
             RAS ras = new RAS(path + "pn9.txt");
             Explore.push(ras);
             int numExplored = 0;
+            List<HashSet<Integer>> exploredConfig = new ArrayList<HashSet<Integer>>();
+            int numRedundantMaxSafe = 0;
+            int numDominated = 0;
             while (Explore.size() > 0)
             {
                 numExplored++;
                 RAS current = Explore.pop();
+                if(exploredBefore(current,exploredConfig))
+                {
+                	numRedundantMaxSafe++;
+                	continue;
+                }
+                exploredConfig.add(current.MaxSafe);
                 if (!RASinPolicies(MaximalPolicies, current))
                 {	
                     if (current.LinearSpearable())
                     {
                         MaximalPolicies = AddRASToPolicies(MaximalPolicies, current);
-                        System.out.println("A linear policy was found");
+                        //current.printMaxSafe();
+                        //System.out.println("A linear policy was found");
                     }
                     else
                     {
@@ -335,13 +274,13 @@ class Algorithm
                             if (!RASinPolicies(MaximalPolicies, newras))
                             	Explore.push(newras);
                             else
-                            	System.out.println("A policy was found redundant 1");
+                            	numDominated++;;
                         }
                     }
                     
                 }
                 else
-                	System.out.println("A policy was found redundant 2");
+                	numDominated++;
                 if(numExplored % 5000 == 4999)
                 {
                 	System.out.println("The algorithm has explored " + numExplored + " subspaces, and there is " + Explore.size() + " subspaces in stack");
@@ -349,14 +288,100 @@ class Algorithm
                 }
                 
             }
+            long duration = System.currentTimeMillis() - startTime;
+            System.out.println("Total time = "+duration/1000);
+            System.out.println("Total Explored = "+numExplored);
+            System.out.println("Redundant Config = "+numRedundantMaxSafe);
+            System.out.println("Dominated by maximal policies = "+numDominated);
             WriteMaximalRAS(pn, numExplored, MaximalPolicies, Explore);
             if (numExplored == 1)
                 linearcount++;
         }
         System.out.println(linearcount + " out of 100 are linearly separable");
     }
+    
+    
+    public void SolvePN1()
+    {
+        
+        
+        int linearcount = 0;
+        long startTime = System.currentTimeMillis();
+        for (int pn = 1; pn <= 1; pn++)
+        {
+            
+            List<RAS> MaximalPolicies = new ArrayList<RAS>();
+            PriorityQueue<RAS> Explore = new PriorityQueue<RAS>();
 
-  
+        	
+            
+            RAS ras = new RAS(path + "pn9.txt");
+            Explore.add(ras);
+            int numExplored = 0;
+            List<HashSet<Integer>> exploredConfig = new ArrayList<HashSet<Integer>>();
+            int numRedundantMaxSafe = 0;
+            int numDominated = 0;
+            while (Explore.size() > 0)
+            {
+                numExplored++;
+                RAS current = Explore.poll();
+                if(exploredBefore(current,exploredConfig))
+                {
+                	numRedundantMaxSafe++;
+                	continue;
+                }
+                exploredConfig.add(current.MaxSafe);
+                if (!RASinPolicies(MaximalPolicies, current))
+                {	
+                    if (current.LinearSpearable())
+                    {
+                        MaximalPolicies = AddRASToPolicies(MaximalPolicies, current);
+                        //current.printMaxSafe();
+                        //System.out.println("A linear policy was found");
+                    }
+                    else
+                    {
+                        List<Integer> CH = current.ConvexHull(); //new List<int>(current.MaxSafe);
+
+                        for (int i = 0; i < CH.size(); i++)
+                        {
+                        	RAS newras = new RAS(current);
+                        	newras.Prune(CH.get(i), current);
+
+                            if (!RASinPolicies(MaximalPolicies, newras))
+                            	Explore.add(newras);
+                            else
+                            	numDominated++;;
+                        }
+                    }
+                    
+                }
+                else
+                	numDominated++;
+                
+            }
+            long duration = System.currentTimeMillis() - startTime;
+            System.out.println("Total time = "+duration/1000);
+            System.out.println("Total Explored = "+numExplored);
+            System.out.println("Redundant Config = "+numRedundantMaxSafe);
+            System.out.println("Dominated by maximal policies = "+numDominated);
+            System.out.println("Number of maximal policies = "+MaximalPolicies.size());
+            if (numExplored == 1)
+                linearcount++;
+        }
+        System.out.println(linearcount + " out of 100 are linearly separable");
+    }
+
+
+   boolean exploredBefore(RAS current,List<HashSet<Integer>> exploredConfig)
+   {
+	   for(HashSet<Integer> maxSafeSet:exploredConfig)
+	   {
+		   if(current.MaxSafe.equals(maxSafeSet))
+			   return true;
+	   }
+	   return false;
+   }
 
     public void WriteResults()
     {
