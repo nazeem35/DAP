@@ -57,18 +57,14 @@ public class RAS implements Comparable<RAS>
 
     public List<Integer> ConvexHull()
     {
-    	//System.out.println("Entered Convex Hull");
     	p = p - r;
     	List<Integer> points = new ArrayList<Integer>();
         List<Integer> SafeIDX = new ArrayList<Integer>();
-        int NumberOfVertices = MaxSafe.size()/* + 1*/;
-        //Why do we need zero
-        //SafeIDX.add(0);
+        int NumberOfVertices = MaxSafe.size();
         for (int i : MaxSafe)
         {
         	SafeIDX.add(i);
         }
-       
 
         double[][] vertices = new double[p] [NumberOfVertices];
         for (int i = 0; i < SafeIDX.size(); i++)
@@ -77,84 +73,158 @@ public class RAS implements Comparable<RAS>
             for (int j = 0; j < p; j++)
                 vertices[j][i] = x[j];
         }
-        long startTime = System.currentTimeMillis();
-      
-        try
+        for (int MSstate : MaxSafe)
         {
-        	
-        	
-        	IloCplex cplex = new IloCplex();
-        	cplex.setOut(null);
-        	IloObjective modelObj = cplex.addMaximize();
-        	IloRange [] rng = new IloRange[p+1];
-        	for (int j = 0; j < p; j++)
-        		rng[j] = cplex.addRange(0,0, "coverDim"+j);
-        	rng[p] = cplex.addRange(1,1, "convex");
-        	IloNumVarArray var = new IloNumVarArray();
-        	for(int i=0;i<NumberOfVertices;i++)
-        	{
-        		IloColumn column;
-        		column = cplex.column(modelObj, 1);
-        		
- 	            for ( int j = 0; j < p; j++ )
- 	               column = column.and(cplex.column(rng[j], vertices[j][i]));
- 	            column = column.and(cplex.column(rng[p], 1));
- 	            var.add(cplex.numVar(column, 0., 1 ,"h"+i));
-        	}
-        	//cplex.exportModel("convex"+Integer.toString(itr1)+".lp");
-           
-            
-       
-        	int counter = 0;
-        	
+            // If the maximal state is on the convex hull of the states before pruning
+            // then, it is on the convex hull of the states after pruning.
+            if(parentConvexHullStates != null && parentConvexHullStates.contains(MSstate))
+            {
+            	points.add(MSstate);
+            	continue;
+            }
 
-	        for (int MSstate : MaxSafe)
-	        {
-	        	  
-	            // If the maximal state is on the convex hull of the states before pruning
-	            // then, it is on the convex hull of the states after pruning.
-	            if(parentConvexHullStates != null && parentConvexHullStates.contains(MSstate))
-	            {
-	            	points.add(MSstate);
-	            	continue;
-	            }
-	          //The index of the state that we are considering from the set of safe states
-	        	int itr1 = SafeIDX.indexOf(MSstate);
-	        	for (int j = 0; j < p; j++)
-	        		rng[j].setBounds(vertices[j][itr1],vertices[j][itr1]);
-	        	cplex.setLinearCoef(modelObj,var.getElement(itr1),0);
-	        	cplex.setParam(IloCplex.IntParam.RootAlg, IloCplex.Algorithm.Dual);
-	        	 if (cplex.solve())
-	             {
-	             	double objective = cplex.getObjValue();
-	             	double eps = 10e-6;
-	             	if(objective < eps) //On the boundary
-	             		points.add(SafeIDX.get(itr1));
-	             	else //Suppress
-	             		var.getElement(itr1).setUB(0);
-	    		 }
-	        	 cplex.setLinearCoef(modelObj,var.getElement(itr1),1);
-	        	 /*counter++;
-	        	 if(counter%10 == 0)
-	        	 {
-	        		 
-	        	 }*/
-	        		 
-	        	 
-	        }
-	        cplex.end();
-	           
+ 
+            try
+            {
+            	//The index of the state that we are considering from the set of safe states
+            	int itr1 = SafeIDX.indexOf(MSstate);
+            	
+            	IloCplex cplex = new IloCplex();
+            	cplex.setOut(null);
+            	cplex.setParam(IloCplex.DoubleParam.TiLim, 60);
+            	IloObjective modelObj = cplex.addMaximize();
+            	IloRange [] rng = new IloRange[p+1];
+            	for (int j = 0; j < p; j++)
+            		rng[j] = cplex.addRange(vertices[j][itr1],vertices[j][itr1], "coverDim"+j);
+            	rng[p] = cplex.addRange(1,1, "convex");
+            	IloNumVarArray var = new IloNumVarArray();
+            	for(int i=0;i<NumberOfVertices;i++)
+            	{
+            		IloColumn column;
+            		if(i== itr1)
+            			column = cplex.column(modelObj, 0);
+            		else
+            			column = cplex.column(modelObj, 1);
+            		
+     	            for ( int j = 0; j < p; j++ )
+     	               column = column.and(cplex.column(rng[j], vertices[j][i]));
+     	            column = column.and(cplex.column(rng[p], 1));
+     	            var.add(cplex.numVar(column, 0., 1 ,"h"+i));
+            	}
+            	//cplex.exportModel("convex"+Integer.toString(itr1)+".lp");
+                if (cplex.solve())
+                {
+                	double objective = cplex.getObjValue();
+                	double eps = 10e-6;
+                	if(objective < eps)
+                		points.add(SafeIDX.get(itr1));
+       			}
+                cplex.end();
+               
+            }
+            catch (Exception e)
+            {
+                System.out.println("Concert exception caught: " + e);
+            }
 
         }
-        catch (Exception e)
-        {
-            System.out.println("Concert exception caught: " + e);
-        }
+
         myConvexHullStates.addAll(points);
+        //p = p + r;
+        //return points;
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Only return the convex hull states that are in the convex hull of the minimal states
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        HashSet<Integer> pointsReduced = new HashSet<Integer>();
+        NumberOfVertices = points.size();
+
+        vertices = new double[p] [NumberOfVertices];
+        for (int i = 0; i < points.size(); i++)
+        {
+        	int[] x = States.get(points.get(i));
+            for (int j = 0; j < p; j++)
+                vertices[j][i] = x[j];
+        }
+        
+        for(int MinState : MinBoundaryUnsafe)
+        {
+            try
+            {	
+            	IloCplex cplex = new IloCplex();
+            	cplex.setOut(null);
+            	cplex.setParam(IloCplex.DoubleParam.TiLim, 60);
+            	IloObjective modelObj = cplex.addMinimize();
+            	IloRange [] rng = new IloRange[p+NumberOfVertices+2];
+            	for (int j = 0; j < p; j++)
+            		rng[j] = cplex.addRange(States.get(MinState)[j],Double.MAX_VALUE, "coverDim"+j);
+            	for (int j = 0; j < NumberOfVertices+1; j++)
+            		rng[p+j] = cplex.addRange(0,1, "binaryFlag"+j);
+            	rng[p+NumberOfVertices+1] = cplex.addRange(0,1, "convex");
+            	IloNumVarArray var = new IloNumVarArray();
+            	for(int i=0;i<NumberOfVertices;i++)
+            	{
+            		IloColumn column = cplex.column(modelObj, 0);
+            		
+     	            for ( int j = 0; j < p; j++ )
+     	               column = column.and(cplex.column(rng[j], vertices[j][i]));
+     	            column = column.and(cplex.column(rng[p+i], -1));
+     	            
+     	            column = column.and(cplex.column(rng[p+NumberOfVertices+1], 1));
+     	            var.add(cplex.numVar(column, 0., 1 ,"h"+i));
+            	}
+
+            	//add min unsafe state
+            	{
+            		IloColumn column = cplex.column(modelObj, 0);
+            		for ( int j = 0; j < p; j++ )
+     	               column = column.and(cplex.column(rng[j], States.get(MinState)[j]));
+     	            column = column.and(cplex.column(rng[p+NumberOfVertices], -1));
+     	            column = column.and(cplex.column(rng[p+NumberOfVertices+1], 1));
+     	            var.add(cplex.numVar(column, 0., 1 ,"h"+NumberOfVertices));
+            	}
+
+            	for(int i=0;i<NumberOfVertices;i++)
+            	{
+            		IloColumn column = cplex.column(modelObj, 1);
+     	            column = column.and(cplex.column(rng[p+i], 1));
+     	            var.add(cplex.boolVar(column, "b"+i));
+            	}
+
+            	double MaxObjective = 1000000;
+            	{
+            		IloColumn column = cplex.column(modelObj, MaxObjective);
+     	            column = column.and(cplex.column(rng[p+NumberOfVertices], 1));
+     	            var.add(cplex.boolVar(column, "b"+NumberOfVertices));
+            	}
+            	
+                if (cplex.solve())
+                {
+                	double objective = cplex.getObjValue();
+                	double eps = 10e-6;
+                	if(objective < MaxObjective)// the min unsafe is a combination of max unsafe
+                	{
+                    	double[] x = new double[NumberOfVertices];
+                        for (int i = 0; i < NumberOfVertices; i++)
+                        {
+                        	IloNumVar elem = var.getElement(i);
+                        	x[i] = cplex.getValue(elem);
+                        	if(x[i] > 0)
+                        		pointsReduced.add(points.get(i));
+                        }
+                	}
+       			}
+                cplex.end();
+               
+            }
+            catch (Exception e)
+            {
+                System.out.println("Concert exception caught: " + e);
+            }
+        }
+        
         p = p + r;
-        long endTime = System.currentTimeMillis();
-	    // System.out.println("Convex Hull time = "+(endTime-startTime));
-        return points;
+        List<Integer> result = new ArrayList<Integer>(pointsReduced);
+        return result;
     }
 
     public void ReadPN(String file)
@@ -955,5 +1025,4 @@ public class RAS implements Comparable<RAS>
    
 
 }
-
 
