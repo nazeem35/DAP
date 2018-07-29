@@ -9,10 +9,13 @@ import java.io.FileReader;
 //import java.io.Reader;
 //import java.io.Writer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.LinkedList;
 import java.util.Map;
+import java.util.Queue;
 //import java.util.Set;
 import java.util.Stack;
 
@@ -40,7 +43,10 @@ public class RAS implements Comparable<RAS>
     public static List<HashSet<Integer>> PreviousStates = new ArrayList<HashSet<Integer>>();
     public static Map<String, Integer> StateDict = new HashMap<String, Integer>();
     public static List<List<Integer>> ConflictStages = new ArrayList<List<Integer>>();
-
+    static HashSet<Integer> nonBoundayUnsafe = new HashSet<Integer>();
+    static HashMap<Integer,HashSet<Integer>> dominatedBy = new HashMap<Integer,HashSet<Integer>>();
+    int prunedState;
+    RAS parentRAS = null;
     public void CalculateSafeCount()
     {
         safeCount = 0;
@@ -51,6 +57,7 @@ public class RAS implements Comparable<RAS>
 
     public List<Integer> ConvexHull()
     {
+    	//System.out.println("Entered Convex Hull");
     	p = p - r;
     	List<Integer> points = new ArrayList<Integer>();
         List<Integer> SafeIDX = new ArrayList<Integer>();
@@ -61,6 +68,7 @@ public class RAS implements Comparable<RAS>
         {
         	SafeIDX.add(i);
         }
+       
 
         double[][] vertices = new double[p] [NumberOfVertices];
         for (int i = 0; i < SafeIDX.size(); i++)
@@ -69,64 +77,83 @@ public class RAS implements Comparable<RAS>
             for (int j = 0; j < p; j++)
                 vertices[j][i] = x[j];
         }
-        for (int MSstate : MaxSafe)
+        long startTime = System.currentTimeMillis();
+      
+        try
         {
-            // If the maximal state is on the convex hull of the states before pruning
-            // then, it is on the convex hull of the states after pruning.
-            if(parentConvexHullStates != null && parentConvexHullStates.contains(MSstate))
-            {
-            	points.add(MSstate);
-            	continue;
-            }
+        	
+        	
+        	IloCplex cplex = new IloCplex();
+        	cplex.setOut(null);
+        	IloObjective modelObj = cplex.addMaximize();
+        	IloRange [] rng = new IloRange[p+1];
+        	for (int j = 0; j < p; j++)
+        		rng[j] = cplex.addRange(0,0, "coverDim"+j);
+        	rng[p] = cplex.addRange(1,1, "convex");
+        	IloNumVarArray var = new IloNumVarArray();
+        	for(int i=0;i<NumberOfVertices;i++)
+        	{
+        		IloColumn column;
+        		column = cplex.column(modelObj, 1);
+        		
+ 	            for ( int j = 0; j < p; j++ )
+ 	               column = column.and(cplex.column(rng[j], vertices[j][i]));
+ 	            column = column.and(cplex.column(rng[p], 1));
+ 	            var.add(cplex.numVar(column, 0., 1 ,"h"+i));
+        	}
+        	//cplex.exportModel("convex"+Integer.toString(itr1)+".lp");
+           
+            
+       
+        	int counter = 0;
+        	
 
- 
-            try
-            {
-            	//The index of the state that we are considering from the set of safe states
-            	int itr1 = SafeIDX.indexOf(MSstate);
-            	
-            	IloCplex cplex = new IloCplex();
-            	cplex.setOut(null);
-            	cplex.setParam(IloCplex.DoubleParam.TiLim, 60);
-            	IloObjective modelObj = cplex.addMaximize();
-            	IloRange [] rng = new IloRange[p+1];
-            	for (int j = 0; j < p; j++)
-            		rng[j] = cplex.addRange(vertices[j][itr1],vertices[j][itr1], "coverDim"+j);
-            	rng[p] = cplex.addRange(1,1, "convex");
-            	IloNumVarArray var = new IloNumVarArray();
-            	for(int i=0;i<NumberOfVertices;i++)
-            	{
-            		IloColumn column;
-            		if(i== itr1)
-            			column = cplex.column(modelObj, 0);
-            		else
-            			column = cplex.column(modelObj, 1);
-            		
-     	            for ( int j = 0; j < p; j++ )
-     	               column = column.and(cplex.column(rng[j], vertices[j][i]));
-     	            column = column.and(cplex.column(rng[p], 1));
-     	            var.add(cplex.numVar(column, 0., 1 ,"h"+i));
-            	}
-            	//cplex.exportModel("convex"+Integer.toString(itr1)+".lp");
-                if (cplex.solve())
-                {
-                	double objective = cplex.getObjValue();
-                	double eps = 10e-6;
-                	if(objective < eps)
-                		points.add(SafeIDX.get(itr1));
-       			}
-                cplex.end();
-               
-            }
-            catch (Exception e)
-            {
-                System.out.println("Concert exception caught: " + e);
-            }
+	        for (int MSstate : MaxSafe)
+	        {
+	        	  
+	            // If the maximal state is on the convex hull of the states before pruning
+	            // then, it is on the convex hull of the states after pruning.
+	            if(parentConvexHullStates != null && parentConvexHullStates.contains(MSstate))
+	            {
+	            	points.add(MSstate);
+	            	continue;
+	            }
+	          //The index of the state that we are considering from the set of safe states
+	        	int itr1 = SafeIDX.indexOf(MSstate);
+	        	for (int j = 0; j < p; j++)
+	        		rng[j].setBounds(vertices[j][itr1],vertices[j][itr1]);
+	        	cplex.setLinearCoef(modelObj,var.getElement(itr1),0);
+	        	cplex.setParam(IloCplex.IntParam.RootAlg, IloCplex.Algorithm.Dual);
+	        	 if (cplex.solve())
+	             {
+	             	double objective = cplex.getObjValue();
+	             	double eps = 10e-6;
+	             	if(objective < eps) //On the boundary
+	             		points.add(SafeIDX.get(itr1));
+	             	else //Suppress
+	             		var.getElement(itr1).setUB(0);
+	    		 }
+	        	 cplex.setLinearCoef(modelObj,var.getElement(itr1),1);
+	        	 /*counter++;
+	        	 if(counter%10 == 0)
+	        	 {
+	        		 
+	        	 }*/
+	        		 
+	        	 
+	        }
+	        cplex.end();
+	           
 
         }
-
+        catch (Exception e)
+        {
+            System.out.println("Concert exception caught: " + e);
+        }
         myConvexHullStates.addAll(points);
         p = p + r;
+        long endTime = System.currentTimeMillis();
+	    // System.out.println("Convex Hull time = "+(endTime-startTime));
         return points;
     }
 
@@ -170,14 +197,14 @@ public class RAS implements Comparable<RAS>
     	}
     }
 
-    String join(String sep,int [] arr)
+    String join(String sep,int [] arr,int arrLen)
     {
     	String res = "";
-    	for(int i=0;i<arr.length-1;i++)
+    	for(int i=0;i<arrLen-1;i++)
     	{
     		res += arr[i]+sep;
     	}
-    	res += arr[arr.length-1];
+    	res += arr[arrLen-1];
     	return res;
     }
     /// <summary>
@@ -186,7 +213,7 @@ public class RAS implements Comparable<RAS>
     public void CalculateReachableStates()
     {
         int currentState = 0;
-        StateDict.put(join(",", m0), 0);
+        StateDict.put(join(",", m0,p-r), 0);
         States.add(m0);
 
         while (currentState < States.size())
@@ -197,51 +224,36 @@ public class RAS implements Comparable<RAS>
             int[] s = new int[p];
             for (int i = 0; i < p; i++)
                 s[i] = States.get(currentState)[i];
-            //2- Make sure that the state doesn't have any stage conflict
-            boolean conflict = false;
-            for (int j = 0; j < ConflictStages.size(); j++)
+           
+            for (int j = 0; j < t; j++)
             {
-                int NonZeroCount = 0;
-                for (int k = 0; k < ConflictStages.get(j).size(); k++)
+                boolean reachable = true;
+                int[] m = new int[p];
+                for (int i = 0; i < p; i++)
                 {
-                    if (States.get(currentState)[ConflictStages.get(j).get(k)] != 0)
-                        NonZeroCount++;
+                    m[i] = s[i];
+                    m[i] += C[i][j];
+                    if (m[i] < 0)
+                        reachable = false;
                 }
-                if (NonZeroCount >= 2)
-                    conflict = true;
-            }
-            //3- If there is no conflict explore reachable states from the current state 
-            if (!conflict)
-            {
-                for (int j = 0; j < t; j++)
+                if (reachable)
                 {
-                    boolean reachable = true;
-                    int[] m = new int[p];
-                    for (int i = 0; i < p; i++)
+                    if (!StateDict.containsKey(join(",", m,p-r)))
                     {
-                        m[i] = s[i];
-                        m[i] += C[i][j];
-                        if (m[i] < 0)
-                            reachable = false;
+                        StateDict.put(join(",", m,p-r), States.size());
+                        States.add(m);
                     }
-                    if (reachable)
-                    {
-                        if (!StateDict.containsKey(join(",", m)))
-                        {
-                            StateDict.put(join(",", m), States.size());
-                            States.add(m);
-                        }
-                        next.add(StateDict.get(join(",", m)));
-                    }
+                    next.add(StateDict.get(join(",", m,p-r)));
                 }
             }
-            //4-
+           
             NextStates.add(next);
 
             //5-
             currentState++;
 
         }
+        return;
 
     }
 
@@ -250,6 +262,7 @@ public class RAS implements Comparable<RAS>
     /// </summary>
     public void CalculateReachableSafeStates()
     {
+    	int l_numSafe = 1;
         for (int i = 0; i < States.size(); i++)
             Safe.add(false);
         Safe.set(0, true);
@@ -266,6 +279,8 @@ public class RAS implements Comparable<RAS>
                         {
                             change = true;
                             Safe.set(i, true);
+                            l_numSafe++;
+                            break;
                         }
                 }
             }
@@ -284,181 +299,185 @@ public class RAS implements Comparable<RAS>
         		PreviousStates.get(j).add(i);
         	}
         }
-    }
-
-    public void RemoveNonboundaryUnsafeStates()
-    {
-        CalculateMaxSafe();
-        for (int i = States.size() - 1; i >= 0; i--)
-        {
-            if (!Safe.get(i) && !MinBoundaryUnsafe.contains(i))
-            {
-                NextStates.set(i, new HashSet<Integer>());
-                PreviousStates.set(i, new HashSet<Integer>());
-                for (int itr = 0; itr < States.size(); itr++)
-                {
-                	if(NextStates.get(itr).contains(i))
-                		NextStates.get(itr).remove(new Integer(i));
-                	if(PreviousStates.get(itr).contains(i))
-                		PreviousStates.get(itr).remove(new Integer(i));
-                }
-                //StateDict.Remove(States[i]);
-                States.set(i, null);
-            }
-        }
-
-        int newidx = States.indexOf(null);
-        if (newidx == -1)
-            return;
-        for (int i = States.indexOf(null); i < States.size(); i++)
-        {
-        	//Ahmed might be problematic
-            if (States.get(i) != null)
-            {
-                States.set(newidx, States.get(i));
-                States.set(i, null);
-                Safe.set(newidx, Safe.get(i));
-                NextStates.set(newidx, new HashSet<Integer>(NextStates.get(i)));
-                PreviousStates.set(newidx, new HashSet<Integer>(PreviousStates.get(i)));
-                //StateDict[States[newidx]] = newidx;
-
-                for (int itr = 0; itr < NextStates.size(); itr++)
-                {
-                    if (NextStates.get(itr).contains(i))
-                    {
-                    	NextStates.get(itr).remove(i);
-                    	NextStates.get(itr).add(newidx);
-                    }
-                    
-                    if (PreviousStates.get(itr).contains(i))
-                    {
-                    	PreviousStates.get(itr).remove(i);
-                    	PreviousStates.get(itr).add(newidx);
-                    }
-                }
-                newidx++;
-                continue;
-            }
-
-        }
-        for (int i = States.size() - 1; i > 0; i--)
-        {
-            if (States.get(i) == null)
-            {
-            	//Ahmed remove also might be problematic
-                States.remove(i);
-                NextStates.remove(i);
-                PreviousStates.remove(i);
-                Safe.remove(i);
-            }
-        }
-        StateDict.clear();
-        for(int i = 0; i < States.size(); i++)
-        	StateDict.put(join(",", States.get(i)), i);
-
-
+        System.out.println("Total = "+States.size()+", Number of safe "+l_numSafe+" , number of unsafe = "+(States.size()-l_numSafe));
+        return;
     }
 
     
-    /// <summary>
+    public void populateMaxMin(int stateIdx, int [] tokens2, int dir,HashSet<Integer> nonMaxMinStates)
+    {
+    	int[] tokens1 = States.get(stateIdx);
+    	tokens2 = Arrays.copyOf(tokens1, p-r);
+    	for(int k=0;k<p-r;k++)
+    	{
+    		
+    		if(tokens2[k]==0 && dir == -1)
+    			continue;
+    		
+			if(dir == -1)
+				tokens2[k]--;
+			else
+				tokens2[k]++;
+			String tokens2Str = this.join(",", tokens2, p-r);
+			
+			if(StateDict.containsKey(tokens2Str))
+			{
+				int searchStateIdx = StateDict.get(tokens2Str);
+				if(dir == -1)
+				{
+					nonMaxMinStates.add(searchStateIdx);
+					addDominatedInfo(stateIdx,searchStateIdx);
+				}
+				else if(dir == 1)
+					nonMaxMinStates.add(searchStateIdx);
+			}
+			if(dir == -1)
+				tokens2[k]++;
+			else
+				tokens2[k]--;
+    		
+    	}
+    }
+   
+    private void addDominatedInfo(int stateIdx, int searchStateIdx) {
+    	HashSet<Integer> dominatingSet;
+		if(dominatedBy.containsKey(searchStateIdx))
+		{
+			dominatingSet = dominatedBy.get(searchStateIdx);
+		}
+		else
+		{
+			dominatingSet = new HashSet<Integer>();
+			dominatedBy.put(searchStateIdx, dominatingSet);
+		}
+		dominatingSet.add(stateIdx);
+		
+	}
+
+	/// <summary>
     /// calculate the maximal safe and the minimal unsafe states
     /// </summary>
     public void CalculateMaxSafe()
     {
+    	  long startTime = System.currentTimeMillis();
+        
         MinBoundaryUnsafe = new HashSet<Integer>();
         for (int i = 0; i < States.size(); i++)
         {
             if (!Safe.get(i))
             {
+            	boolean nonBoundary = true;
                 for (int j : PreviousStates.get(i))
                 {
                     if (Safe.get(j))
                     {
                     	MinBoundaryUnsafe.add(i);
+                    	nonBoundary = false;
                     	break;
+                    	
                     }
                 }
+                if(nonBoundary)
+                	nonBoundayUnsafe.add(i);
             }
         }
-        //
-        Object[] array = MinBoundaryUnsafe.toArray();
-        for (int itr = array.length - 1; itr >= 0; itr--)
+        System.out.println("Passed 1");
+        //Added New
+        HashSet<Integer> nonMaximalSafe = new HashSet<Integer>();
+        HashSet<Integer> nonMinimalBoundaryUnsafe = new HashSet<Integer>();
+        int [] tokens2 = new int[p-r];
+        for(int i=0;i<States.size();i++)
         {
-            boolean remove = false;
-            int[] tokens1 = States.get((int)array[itr]);
-
-            for (int j = 0; j < array.length; j++)
-            {
-                if (j == itr)
-                    continue;
-                boolean AllGreaterOrEqual = true;
-                int[] tokens2 = States.get((int)array[j]);
-                for (int k = 0; k < p - r; k++)
-                {
-                    if (tokens1[k] < tokens2[k])
-                    {
-                        AllGreaterOrEqual = false;
-                        break;
-                    }
-                }
-                if (AllGreaterOrEqual)
-                {
-                    remove = true;
-                    break;
-                }
-            }
-            if (remove)
-            {
-            	MinBoundaryUnsafe.remove((int)array[itr]);
-            }
+        	if(Safe.get(i))
+        	{
+        		MaxSafe.add(i);
+        		populateMaxMin(i,tokens2,-1,nonMaximalSafe);
+        	}
+        	else if(MinBoundaryUnsafe.contains(i))
+        	{
+        		populateMaxMin(i,tokens2,1,nonMinimalBoundaryUnsafe);
+        	}
         }
+        MinBoundaryUnsafe.removeAll(nonMinimalBoundaryUnsafe);
+        MaxSafe.removeAll(nonMaximalSafe);
         
-        //
-        MaxSafe = new HashSet<Integer>();
-        for(int i = 0; i < States.size(); i++)
-        {
-            if(Safe.get(i))
-            {
-                MaxSafe.add(i);
-            }
-        }
-        
-        Object[] arr = MaxSafe.toArray();
-        for(int itr = arr.length - 1; itr >= 0; itr--)
-        {
-        	boolean remove = false;
-            int[] tokens1 = States.get((int)arr[itr]);
-
-            for (int j = 0; j < arr.length; j++)
-            {
-                if (j == itr)
-                    continue;
-                boolean AllLessOrEqual = true;
-                int[] tokens2 = States.get((int)arr[j]); 
-                for (int k = 0; k < p - r; k++)
-                {
-                    if(tokens1[k] > tokens2[k])
-                    {
-                        AllLessOrEqual = false;
-                        break;
-                    }
-                }
-                if(AllLessOrEqual)
-                {
-                    remove = true;
-                    break;
-                }
-            }
-            if(remove)
-            {
-                MaxSafe.remove((int)arr[itr]);
-            }
-        }
+        //End Added New
+        System.out.println("Passed 3");
+        long endTime = System.currentTimeMillis();
+        System.out.println("RAS first one time = "+(endTime-startTime));
+       
 
     }
     
-
+    
+    /*
+     * A min boundary might become non-boundary -- reanalyze boundary
+     * A min boundary might be become dominated by any of the newly added unsafe states
+     * 
+     * A maximal safe states that remains safe is still maximal
+     * 
+     * */
     public void CalculateMaxSafe(RAS parent)
+    {
+    	long startTime = System.currentTimeMillis();
+    	//Init boundary unsafe
+    	MinBoundaryUnsafe = new HashSet<Integer>(parent.MinBoundaryUnsafe);
+    	//Add new unsafe as candidates
+    	 for(int i = 0; i < States.size(); i++)
+    	 {
+         	if(parent.Safe.get(i) && !Safe.get(i))
+         	{
+	         	for(int j : PreviousStates.get(i))
+	         	{
+	         		if(Safe.get(j))
+	         		{
+	         			MinBoundaryUnsafe.add(i);
+	         			break;
+	         		}
+	         	}
+         	}
+         	
+         }
+    	 //Extract the min ones
+    	 int [] tokens2 = new int[p-r];
+    	 HashSet<Integer> nonMinimalBoundaryUnsafe = new HashSet<Integer>();
+    	 for(int i:MinBoundaryUnsafe)
+         {
+    		 populateMaxMin(i,tokens2,1,nonMinimalBoundaryUnsafe);
+         	
+         }
+         MinBoundaryUnsafe.removeAll(nonMinimalBoundaryUnsafe);
+         
+         //Review the maximal safe states
+         for(int i = 0; i < States.size(); i++)
+         {
+        	 if(Safe.get(i))
+        	 {
+        		 if(parent.MaxSafe.contains(i))
+        			 MaxSafe.add(i);
+        		 else //Previously non-maximal
+        		 {
+        			 HashSet<Integer> dominatingSet = dominatedBy.get(i);
+        			 boolean isMax = true;
+        			 for(int j: dominatingSet)
+        			 {
+        				 if(Safe.get(j))
+        				 {
+        					 isMax = false;
+        					 break;
+        				 }
+        			 }
+        			 if(isMax)
+        				 MaxSafe.add(i);
+        		 }
+        	 }
+         }
+         long endTime = System.currentTimeMillis();
+         //System.out.println("RAS from parent time  =  "+(endTime-startTime));
+         //System.out.println("Max Safe = "+MaxSafe.size()+" , Min unsafe = "+MinBoundaryUnsafe.size());
+         return;
+    }
+    public void CalculateMaxSafe1(RAS parent)
     {
         MinBoundaryUnsafe = new HashSet<Integer>(parent.MinBoundaryUnsafe);
         HashSet<Integer> Changed = new HashSet<Integer>();
@@ -476,6 +495,7 @@ public class RAS implements Comparable<RAS>
         			break;
         		}
         	}
+        	
         }
         //
         Object[] array = MinBoundaryUnsafe.toArray();
@@ -584,13 +604,52 @@ public class RAS implements Comparable<RAS>
         }
 
     }
+    void reviewSafety(int prunedState)
+    {
+    	
+    	Queue<Integer> myQ = new LinkedList<>();
+    	HashSet<Integer> visited = new HashSet<Integer>();
+    	myQ.add(prunedState);
+    	visited.add(prunedState);
+    	while(!myQ.isEmpty())
+    	{
+    		int stateIdx = myQ.poll();
+    		Safe.set(stateIdx,false); 
+    		HashSet<Integer> l_prev = PreviousStates.get(stateIdx);
+    		for(int prevState:l_prev)
+    		{
+    			if(visited.contains(prevState))
+    				continue;
+    			visited.add(prevState);
+    			HashSet<Integer> nextToPrev = NextStates.get(prevState);
+    			boolean isSafe = false;
+    			for(int next:nextToPrev)
+    			{
+    				if(Safe.get(next))
+    				{
+    					isSafe = true;
+    					break;
+    				}
+    			}
+    			if(!isSafe)
+    				myQ.add(prevState);
+    			
+    		}
+    	}
+    	
+    }
 
     /// <summary>
     /// mark one of the states to be unsafe and modify the data accordingly
     /// </summary>
     /// <param name="state"></param>
-    public void Prune(int PrunedState, RAS Parent)
+    public void applyPruning()
     {
+    	if(parentRAS == null)
+    		return;
+    	long startTime = System.currentTimeMillis();
+    	reviewSafety(prunedState);
+    	/*
     	// lines 1-4 of the algorithm
     	//The set S will contains all the states s such that
     	//s <= s'' for s'' \in \bar{S} (the maximal of the parent) except the pruned state
@@ -599,9 +658,6 @@ public class RAS implements Comparable<RAS>
     	for(int i = 0; i < Safe.size() ;i++)
     		if(Safe.get(i))
     			Shat_r.add(i);
-
-    	
-    	
     	Stack<Integer> Explore = new Stack<Integer>();
     	HashSet<Integer> Tested = new HashSet<Integer>();
     	
@@ -631,8 +687,10 @@ public class RAS implements Comparable<RAS>
     		Safe.set(i,  false);
     	for(int i : Shat_rs)
     		Safe.set(i, true);
+    	*/
+    	long time1 = System.currentTimeMillis();
     	// line 8 of the algorithm
-        CalculateMaxSafe(Parent); 
+        CalculateMaxSafe(parentRAS); 
        /* System.out.println("Number of reachable safe states before pruning "+Shat_r.size());
         System.out.println("Number of reachable safe states after pruning "+Shat_rs.size());
         System.out.println("Number of maximal safe states "+MaxSafe.size());
@@ -640,6 +698,8 @@ public class RAS implements Comparable<RAS>
         printStates2();*/
         // This calculates the number of safe states
         CalculateSafeCount();
+        long time2 = System.currentTimeMillis();
+     
     }
 
     /// <summary>
@@ -657,7 +717,6 @@ public class RAS implements Comparable<RAS>
         {
             IloCplex cplex = new IloCplex();
             cplex.setOut(null);
-        	cplex.setParam(IloCplex.DoubleParam.TiLim, 60);
             IloObjective modelObj = cplex.addMaximize();
         	IloRange [][] rng = new IloRange[2][];
         	rng[0] = new IloRange[MaxSafe.size()];
@@ -786,6 +845,7 @@ public class RAS implements Comparable<RAS>
         System.out.println("Number of maximal safe states "+MaxSafe.size());
         System.out.println("Number of minimal unsafe states "+MinBoundaryUnsafe.size());
         System.out.println("Dim = "+(p-r));
+        return;
         //printStates();
     }
     void printStates()
@@ -871,16 +931,18 @@ public class RAS implements Comparable<RAS>
     /// copy constructor for deep copying
     /// </summary>
     /// <param name="ras"></param>
-    public RAS(RAS ras)
+    public RAS(RAS parentRAS,int prunedState)
     {
+    	this.parentRAS = parentRAS;
         m0 = null;
         C = null;
+        this.prunedState = prunedState;
         //StateDict.clear();
 
-        Safe = new ArrayList<Boolean>(ras.Safe);
+        Safe = new ArrayList<Boolean>(parentRAS.Safe);
         MaxSafe = new HashSet<Integer>();//ras.MaxSafe
         MinBoundaryUnsafe = new HashSet<Integer>();//ras.MinUnsafe
-        parentConvexHullStates = ras.myConvexHullStates;
+        parentConvexHullStates = parentRAS.myConvexHullStates;
 
     }
 

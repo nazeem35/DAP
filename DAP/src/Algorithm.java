@@ -190,6 +190,7 @@ class Algorithm
             {
                 numExplored++;
                 RAS current = Explore.poll();
+                current.applyPruning();
                 if (current.LinearSpearable())
                 {
                     MaximalPolicies.add(current);
@@ -200,8 +201,7 @@ class Algorithm
                     List<Integer> CH = current.ConvexHull(); //new List<int>(current.MaxSafe);
                     for (int i = 0; i < CH.size(); i++)
                     {
-                    	RAS newras = new RAS(current);
-                      	newras.Prune(CH.get(i), current);
+                    	RAS newras = new RAS(current,CH.get(i));
                       	//if(newras.safeCount >= 103)
                         Explore.add(newras);
                     }
@@ -235,10 +235,7 @@ class Algorithm
 
             List<RAS> MaximalPolicies = new ArrayList<RAS>();
             Stack<RAS> Explore = new Stack<RAS>();
-
-        	
-            
-            RAS ras = new RAS(path + "pn9.txt");
+            RAS ras = new RAS(path + "PT222");
             Explore.push(ras);
             int numExplored = 0;
             List<HashSet<Integer>> exploredConfig = new ArrayList<HashSet<Integer>>();
@@ -248,6 +245,7 @@ class Algorithm
             {
                 numExplored++;
                 RAS current = Explore.pop();
+                //current.applyPruning();
                 if(exploredBefore(current,exploredConfig))
                 {
                 	numRedundantMaxSafe++;
@@ -260,31 +258,28 @@ class Algorithm
                     {
                         MaximalPolicies = AddRASToPolicies(MaximalPolicies, current);
                         //current.printMaxSafe();
-                        //System.out.println("A linear policy was found");
+                        System.out.println("A linear policy was found");
                     }
                     else
                     {
                         List<Integer> CH = current.ConvexHull(); //new List<int>(current.MaxSafe);
-
                         for (int i = 0; i < CH.size(); i++)
                         {
-                        	RAS newras = new RAS(current);
-                        	newras.Prune(CH.get(i), current);
-
-                            if (!RASinPolicies(MaximalPolicies, newras))
-                            	Explore.push(newras);
-                            else
-                            	numDominated++;;
+                        	RAS newras = new RAS(current,CH.get(i));
+                        	newras.applyPruning();
+                        	 if (!RASinPolicies(MaximalPolicies, newras) && !exploredBefore(newras,exploredConfig))
+                             	Explore.push(newras);
+                             else
+                             	numDominated++;
                         }
                     }
                     
                 }
                 else
                 	numDominated++;
-                if(numExplored % 5000 == 4999)
+                if(numExplored % 10 == 0)
                 {
-                	System.out.println("The algorithm has explored " + numExplored + " subspaces, and there is " + Explore.size() + " subspaces in stack");
-                	WriteMaximalRAS(pn, numExplored, MaximalPolicies, Explore);
+                	System.out.println("Number explored "+numExplored+ ", redundant = "+numRedundantMaxSafe+", dominated "+numDominated);
                 }
                 
             }
@@ -325,6 +320,7 @@ class Algorithm
             {
                 numExplored++;
                 RAS current = Explore.poll();
+                current.applyPruning();
                 if(exploredBefore(current,exploredConfig))
                 {
                 	numRedundantMaxSafe++;
@@ -345,8 +341,8 @@ class Algorithm
 
                         for (int i = 0; i < CH.size(); i++)
                         {
-                        	RAS newras = new RAS(current);
-                        	newras.Prune(CH.get(i), current);
+                        	RAS newras = new RAS(current,CH.get(i));
+                        	
 
                             if (!RASinPolicies(MaximalPolicies, newras))
                             	Explore.add(newras);
