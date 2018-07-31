@@ -225,6 +225,83 @@ class Algorithm
         System.out.println(linearcount + " out of 100 are linearly separable");
     }
     
+    public void SolvePNMax2()
+    {
+       
+        int linearcount = 0;
+        int maxsize = 0;
+        long startTime = System.currentTimeMillis();
+        for (int pn = 5; pn <= 5; pn++)
+        {
+            List<RAS> MaximalPolicies = new ArrayList<RAS>();
+            Stack<RAS> Explore = new Stack<RAS>();
+            RAS ras = new RAS(path + "PT222");
+            Explore.push(ras);
+            int numExplored = 0;
+            List<HashSet<Integer>> exploredConfig = new ArrayList<HashSet<Integer>>();
+            int numRedundantMaxSafe = 0;
+            int numDominated = 0;
+            while (Explore.size() > 0)
+            {
+                numExplored++;
+                RAS current = Explore.pop();
+                if(current.safeCount <= maxsize)
+                	continue;
+                
+                //current.applyPruning();
+                if(exploredBefore(current,exploredConfig))
+                {
+                	numRedundantMaxSafe++;
+                	continue;
+                }
+                exploredConfig.add(current.MaxSafe);
+                if (!RASinPolicies(MaximalPolicies, current))
+                {	
+                    if (current.LinearSpearable())
+                    {
+                        maxsize = current.safeCount;
+                    	MaximalPolicies.clear();
+                        MaximalPolicies = AddRASToPolicies(MaximalPolicies, current);
+                        System.out.println("A linear policy was found, current size is " + maxsize);
+                    }
+                    else
+                    {
+                        List<Integer> CH = current.ConvexHull(); //new List<int>(current.MaxSafe);
+                        for (int i = 0; i < CH.size(); i++)
+                        {
+                        	RAS newras = new RAS(current,CH.get(i));
+                        	newras.applyPruning();
+                        	if(newras.safeCount <= maxsize)
+                            	continue;
+                        	
+                        	 if (!RASinPolicies(MaximalPolicies, newras) && !exploredBefore(newras,exploredConfig))
+                             	Explore.push(newras);
+                             else
+                             	numDominated++;
+                        }
+                    }
+                    
+                }
+                else
+                	numDominated++;
+                if(numExplored % 10 == 0)
+                {
+                	System.out.println("Current stack size " + Explore.size() +  " ,number explored "+numExplored+ ", redundant = "+numRedundantMaxSafe+", dominated "+numDominated);
+                }
+                
+            }
+            long duration = System.currentTimeMillis() - startTime;
+            System.out.println("Total time = "+duration/1000);
+            System.out.println("Total Explored = "+numExplored);
+            System.out.println("Redundant Config = "+numRedundantMaxSafe);
+            System.out.println("Dominated by maximal policies = "+numDominated);
+            WriteMaximalRAS(pn, numExplored, MaximalPolicies, Explore);
+            if (numExplored == 1)
+                linearcount++;
+        }
+        System.out.println(linearcount + " out of 100 are linearly separable");
+    }
+    
     public void SolvePN()
     {
        
@@ -280,7 +357,7 @@ class Algorithm
                 	numDominated++;
                 if(numExplored % 10 == 0)
                 {
-                	System.out.println("Number explored "+numExplored+ ", redundant = "+numRedundantMaxSafe+", dominated "+numDominated);
+                	System.out.println("Current stack size " + Explore.size() +  " ,number explored "+numExplored+ ", redundant = "+numRedundantMaxSafe+", dominated "+numDominated);
                 }
                 
             }

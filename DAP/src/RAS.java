@@ -180,7 +180,6 @@ public class RAS implements Comparable<RAS>
             List<double[]> ConvexA = new ArrayList<double[]>();
             List<Double> Convexb = new ArrayList<Double>();
             
-            int currItr = 1000;
             
         	try
             {
@@ -237,7 +236,8 @@ public class RAS implements Comparable<RAS>
      	            column = column.and(cplex.column(rng[p+NumberOfVertices], 1));
      	            var.add(cplex.boolVar(column, "b"+NumberOfVertices));
             	}
-            	
+
+                int currItr = 0;
             	boolean change = true;
         		while(change)
                 {	
