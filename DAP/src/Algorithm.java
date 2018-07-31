@@ -202,7 +202,8 @@ class Algorithm
                     for (int i = 0; i < CH.size(); i++)
                     {
                     	RAS newras = new RAS(current,CH.get(i));
-                      	//if(newras.safeCount >= 103)
+                    	newras.applyPruning();
+
                         Explore.add(newras);
                     }
                 }
