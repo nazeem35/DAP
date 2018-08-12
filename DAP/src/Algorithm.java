@@ -71,10 +71,14 @@ class Algorithm
 
     public List<RAS> AddRASToPolicies(List<RAS> policies, RAS ras)
     {
+    	System.out.println("Size of linear ras is "+ras.MaxSafe.size());
         for (int i = policies.size() - 1; i >= 0; i--)
         {
             if (RASinRAS(ras, policies.get(i)))
+            {
+            	System.out.println("Removing a dominated policy");
                 policies.remove(i);
+            }
         }
         policies.add(ras);
         return policies;
@@ -190,7 +194,6 @@ class Algorithm
             {
                 numExplored++;
                 RAS current = Explore.poll();
-                current.applyPruning();
                 if (current.LinearSpearable())
                 {
                     MaximalPolicies.add(current);
@@ -202,6 +205,7 @@ class Algorithm
                     for (int i = 0; i < CH.size(); i++)
                     {
                     	RAS newras = new RAS(current,CH.get(i));
+                    	newras.applyPruning();
                       	//if(newras.safeCount >= 103)
                         Explore.add(newras);
                     }
@@ -219,9 +223,12 @@ class Algorithm
             {
 
             }
-            //MessageBox.Show("There is " + MaximalPolicies.Count + " maximal linear policy");
+            if(MaximalPolicies.size()>0)
+            {
+            	System.out.println("Maximal policy has "+MaximalPolicies.get(0).safeCount+" states "+ MaximalPolicies.get(0).MaxSafe.size()+" Max Safe states");
+            }
         }
-        System.out.println(linearcount + " out of 100 are linearly separable");
+        
     }
     
     public void SolvePN()
@@ -277,10 +284,10 @@ class Algorithm
                 }
                 else
                 	numDominated++;
-                if(numExplored % 10 == 0)
+               /* if(numExplored % 10 == 0)
                 {
                 	System.out.println("Number explored "+numExplored+ ", redundant = "+numRedundantMaxSafe+", dominated "+numDominated);
-                }
+                }*/
                 
             }
             long duration = System.currentTimeMillis() - startTime;
