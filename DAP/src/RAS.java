@@ -151,10 +151,146 @@ public class RAS implements Comparable<RAS>
             System.out.println("Concert exception caught: " + e);
         }
         myConvexHullStates.addAll(points);
-        p = p + r;
+        //p = p + r;
         long endTime = System.currentTimeMillis();
 	    // System.out.println("Convex Hull time = "+(endTime-startTime));
-        return points;
+        //return points;
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Only return the convex hull states that are in the convex hull of the minimal states
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        HashSet<Integer> pointsReduced = new HashSet<Integer>();
+        
+        double eps = 10e-6;
+    	double MaxObjective = 1000000;
+        
+
+        NumberOfVertices = points.size();
+        vertices = new double[p] [NumberOfVertices];
+        for (int i = 0; i < points.size(); i++)
+        {
+        	int[] x = States.get(points.get(i));
+            for (int j = 0; j < p; j++)
+                vertices[j][i] = x[j];
+        }
+        
+        
+        for(int MinState : MinBoundaryUnsafe)
+        {
+            //convex combinations that will not be allowed in the second loop
+            List<double[]> ConvexA = new ArrayList<double[]>();
+            List<Double> Convexb = new ArrayList<Double>();
+            
+            
+        	try
+            {
+            	IloCplex cplex = new IloCplex();
+            	cplex.setOut(null);
+            	cplex.setParam(IloCplex.DoubleParam.TiLim, 60);
+            	cplex.setWarning(null);
+            	IloObjective modelObj = cplex.addMinimize();
+            	IloRange [] rng = new IloRange[p+NumberOfVertices+2+Convexb.size()];
+            	
+            	for (int j = 0; j < p; j++)
+            		rng[j] = cplex.addRange(States.get(MinState)[j],Double.MAX_VALUE, "coverDim"+j);
+            	for (int j = 0; j < NumberOfVertices+1; j++)
+            		rng[p+j] = cplex.addRange(0,1, "binaryFlag"+j);
+            	rng[p+NumberOfVertices+1] = cplex.addRange(0,1, "convex");
+            	for(int itr = 0; itr < Convexb.size(); itr++)
+            		rng[p+NumberOfVertices+2+itr] = cplex.addRange(0,Convexb.get(itr), "IgnoredConvexComb"+itr);
+            	IloNumVarArray var = new IloNumVarArray();
+            	for(int i=0;i<NumberOfVertices;i++)
+            	{
+            		IloColumn column = cplex.column(modelObj, 0);
+            		
+     	            for ( int j = 0; j < p; j++ )
+     	               column = column.and(cplex.column(rng[j], vertices[j][i]));
+     	            column = column.and(cplex.column(rng[p+i], -1));
+     	            
+     	            column = column.and(cplex.column(rng[p+NumberOfVertices+1], 1));
+     	            
+     	            for(int j = 0; j < Convexb.size(); j++)
+      	               column = column.and(cplex.column(rng[p+NumberOfVertices+2+j], ConvexA.get(j)[i]));
+     	            
+     	            var.add(cplex.numVar(column, 0., 1 ,"h"+i));
+            	}
+
+            	//add min unsafe state
+            	{
+            		IloColumn column = cplex.column(modelObj, 0);
+            		for ( int j = 0; j < p; j++ )
+     	               column = column.and(cplex.column(rng[j], States.get(MinState)[j]));
+     	            column = column.and(cplex.column(rng[p+NumberOfVertices], -1));
+     	            column = column.and(cplex.column(rng[p+NumberOfVertices+1], 1));
+     	            var.add(cplex.numVar(column, 0., 1 ,"h"+NumberOfVertices));
+            	}
+
+            	for(int i=0;i<NumberOfVertices;i++)
+            	{
+            		IloColumn column = cplex.column(modelObj, 1);
+     	            column = column.and(cplex.column(rng[p+i], 1));
+     	            var.add(cplex.boolVar(column, "b"+i));
+            	}
+
+            	{
+            		IloColumn column = cplex.column(modelObj, MaxObjective);
+     	            column = column.and(cplex.column(rng[p+NumberOfVertices], 1));
+     	            var.add(cplex.boolVar(column, "b"+NumberOfVertices));
+            	}
+
+                int currItr = 0;
+            	boolean change = true;
+        		while(change)
+                {	
+                	change = false;
+                	
+                    if (cplex.solve())
+                    {
+                    	double objective = cplex.getObjValue();
+                    	
+                    	if(objective < MaxObjective)// the min unsafe is a combination of max unsafe
+                    	{
+                    		change = true;
+                    		double[] A = new double[NumberOfVertices];
+                    		double b = -eps;
+                        	double[] x = new double[NumberOfVertices];
+                            for (int i = 0; i < NumberOfVertices; i++)
+                            {
+                            	IloNumVar elem = var.getElement(i);
+                            	x[i] = cplex.getValue(elem);
+                            	if(x[i] > 0)
+                            	{
+                            		pointsReduced.add(points.get(i));
+                            		b += x[i];
+                            		A[i] = 1;
+                            	}
+                            }
+                            ConvexA.add(A);
+                            Convexb.add(b);
+                            
+
+                            IloLinearNumExpr exprNew = cplex.linearNumExpr();
+                        	for(int k = 0; k<NumberOfVertices; k++)
+                        		exprNew.addTerm(A[k], var._array[k]);
+                        	
+                        	cplex.addLe(exprNew, b, "IgnoredConvexComb"+currItr);
+                        	currItr++;
+                        	cplex.clearCuts();
+                        	cplex.solve();
+                    	}
+           			}
+                }
+                cplex.end();
+            }
+            catch (Exception e)
+            {
+                System.out.println("Concert exception caught: " + e);
+            }
+        }
+        
+        p = p + r;
+        List<Integer> result = new ArrayList<Integer>(pointsReduced);
+        return result;
+        
     }
 
     public void ReadPN(String file)
@@ -949,11 +1085,10 @@ public class RAS implements Comparable<RAS>
 
 	@Override
 	public int compareTo(RAS arg0) {
-		return Integer.compare(arg0.MaxSafe.size(), this.MaxSafe.size());
+		return Integer.compare(arg0.safeCount, this.safeCount);
 	}
 
    
 
 }
-
 
