@@ -158,7 +158,7 @@ public class RAS implements Comparable<RAS>
         /////////////////////////////////////////////////////////////////////////////////////////////////////////////
         // Only return the convex hull states that are in the convex hull of the minimal states
         /////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        HashSet<Integer> pointsReduced = new HashSet<Integer>();
+HashSet<Integer> pointsReduced = new HashSet<Integer>();
         
         double eps = 10e-6;
     	double MaxObjective = 1000000;
@@ -176,11 +176,6 @@ public class RAS implements Comparable<RAS>
         
         for(int MinState : MinBoundaryUnsafe)
         {
-            //convex combinations that will not be allowed in the second loop
-            List<double[]> ConvexA = new ArrayList<double[]>();
-            List<Double> Convexb = new ArrayList<Double>();
-            
-            
         	try
             {
             	IloCplex cplex = new IloCplex();
@@ -188,15 +183,13 @@ public class RAS implements Comparable<RAS>
             	cplex.setParam(IloCplex.DoubleParam.TiLim, 60);
             	cplex.setWarning(null);
             	IloObjective modelObj = cplex.addMinimize();
-            	IloRange [] rng = new IloRange[p+NumberOfVertices+2+Convexb.size()];
+            	IloRange [] rng = new IloRange[p+NumberOfVertices+2];
             	
             	for (int j = 0; j < p; j++)
             		rng[j] = cplex.addRange(States.get(MinState)[j],Double.MAX_VALUE, "coverDim"+j);
             	for (int j = 0; j < NumberOfVertices+1; j++)
             		rng[p+j] = cplex.addRange(0,1, "binaryFlag"+j);
             	rng[p+NumberOfVertices+1] = cplex.addRange(0,1, "convex");
-            	for(int itr = 0; itr < Convexb.size(); itr++)
-            		rng[p+NumberOfVertices+2+itr] = cplex.addRange(0,Convexb.get(itr), "IgnoredConvexComb"+itr);
             	IloNumVarArray var = new IloNumVarArray();
             	for(int i=0;i<NumberOfVertices;i++)
             	{
@@ -207,9 +200,6 @@ public class RAS implements Comparable<RAS>
      	            column = column.and(cplex.column(rng[p+i], -1));
      	            
      	            column = column.and(cplex.column(rng[p+NumberOfVertices+1], 1));
-     	            
-     	            for(int j = 0; j < Convexb.size(); j++)
-      	               column = column.and(cplex.column(rng[p+NumberOfVertices+2+j], ConvexA.get(j)[i]));
      	            
      	            var.add(cplex.numVar(column, 0., 1 ,"h"+i));
             	}
@@ -260,17 +250,14 @@ public class RAS implements Comparable<RAS>
                             	if(x[i] > 0)
                             	{
                             		pointsReduced.add(points.get(i));
-                            		b += x[i];
+                            		b += 1;
                             		A[i] = 1;
                             	}
                             }
-                            ConvexA.add(A);
-                            Convexb.add(b);
                             
-
                             IloLinearNumExpr exprNew = cplex.linearNumExpr();
                         	for(int k = 0; k<NumberOfVertices; k++)
-                        		exprNew.addTerm(A[k], var._array[k]);
+                        		exprNew.addTerm(A[k], var._array[k+1+NumberOfVertices]);
                         	
                         	cplex.addLe(exprNew, b, "IgnoredConvexComb"+currItr);
                         	currItr++;
@@ -1091,4 +1078,3 @@ public class RAS implements Comparable<RAS>
    
 
 }
-
