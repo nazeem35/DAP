@@ -13,6 +13,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.Stack;
 
+import java.util.stream.IntStream; 
 //import java.io.Writer;
 
 class Algorithm
@@ -268,7 +269,7 @@ class Algorithm
                     else
                     {
                         List<Integer> CH = current.ConvexHull(); //new List<int>(current.MaxSafe);
-                        for (int i = 0; i < CH.size(); i++)
+                        /*for (int i = 0; i < CH.size(); i++)
                         {
                         	RAS newras = new RAS(current,CH.get(i));
                         	newras.applyPruning();
@@ -279,6 +280,22 @@ class Algorithm
                              	Explore.push(newras);
                              else
                              	numDominated++;
+                        }
+                        */
+                        List<RAS> ToBePruned = new ArrayList<RAS>();
+                        for(int i = 0; i < CH.size(); i++)
+                        {
+                        	ToBePruned.add(new RAS(current,CH.get(i)));
+                        }
+                        IntStream.range(0, CH.size()).parallel().forEach(i -> {ToBePruned.get(i).applyPruning();});
+                        for(int i = 0; i < CH.size(); i++)
+                        {
+                        	 if(ToBePruned.get(i).safeCount <= maxsize)
+                            	continue;
+	                       	 if (!RASinPolicies(MaximalPolicies, ToBePruned.get(i)) && !exploredBefore(ToBePruned.get(i),exploredConfig))
+	                          	Explore.push(ToBePruned.get(i));
+	                          else
+	                          	numDominated++;
                         }
                     }
                     
@@ -342,7 +359,7 @@ class Algorithm
                     else
                     {
                         List<Integer> CH = current.ConvexHull(); //new List<int>(current.MaxSafe);
-                        for (int i = 0; i < CH.size(); i++)
+                        /*for (int i = 0; i < CH.size(); i++)
                         {
                         	RAS newras = new RAS(current,CH.get(i));
                         	newras.applyPruning();
@@ -350,6 +367,19 @@ class Algorithm
                              	Explore.push(newras);
                              else
                              	numDominated++;
+                        }*/
+                        List<RAS> ToBePruned = new ArrayList<RAS>();
+                        for(int i = 0; i < CH.size(); i++)
+                        {
+                        	ToBePruned.add(new RAS(current,CH.get(i)));
+                        }
+                        IntStream.range(0, CH.size()).parallel().forEach(i -> {ToBePruned.get(i).applyPruning();});
+                        for(int i = 0; i < CH.size(); i++)
+                        {
+	                       	 if (!RASinPolicies(MaximalPolicies, ToBePruned.get(i)) && !exploredBefore(ToBePruned.get(i),exploredConfig))
+	                          	Explore.push(ToBePruned.get(i));
+	                          else
+	                          	numDominated++;
                         }
                     }
                     
@@ -490,4 +520,3 @@ class Algorithm
     }
 
 }
-
