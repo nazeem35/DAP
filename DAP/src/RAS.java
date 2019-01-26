@@ -36,6 +36,7 @@ public class RAS implements Comparable<RAS>
     public List<Boolean> Safe = new ArrayList<Boolean>();
     public HashSet<Integer> MaxSafe = new HashSet<Integer>();
     public HashSet<Integer> MinBoundaryUnsafe = new HashSet<Integer>();
+    public HashSet<Integer> MinBoundaryUnsafeUnseparable = new HashSet<Integer>();
     //public HashSet<Integer> BoundaryUnsafe = new HashSet<Integer>();
     public HashSet <Integer> myConvexHullStates = new HashSet <Integer>();
     public HashSet <Integer> parentConvexHullStates = null;
@@ -47,6 +48,108 @@ public class RAS implements Comparable<RAS>
     static HashMap<Integer,HashSet<Integer>> dominatedBy = new HashMap<Integer,HashSet<Integer>>();
     int prunedState;
     RAS parentRAS = null;
+    
+    @Override
+    public String toString()
+    {
+    	String ras = "" + safeCount + ",";
+    	ras += Safe.size() + ",";
+    	for(int i = 0;i < Safe.size(); i++)
+    		ras += Safe.get(i) + ",";
+    	ras += MaxSafe.size() + ",";
+    	for(int i: MaxSafe)
+    		ras += i + ",";
+    	
+    	ras += MinBoundaryUnsafe.size() + ",";
+    	for(int i: MinBoundaryUnsafe)
+    		ras += i + ",";
+    	ras += MinBoundaryUnsafeUnseparable.size() + ",";
+    	for(int i: MinBoundaryUnsafeUnseparable)
+    		ras += i + ",";
+    	ras += myConvexHullStates.size() + ",";
+    	for(int i: myConvexHullStates)
+    		ras += i + ",";
+    	ras += parentConvexHullStates.size() + ",";
+    	for(int i: parentConvexHullStates)
+    		ras += i + ",";
+    	ras += nonBoundayUnsafe.size() + ",";
+    	for(int i: nonBoundayUnsafe)
+    		ras += i + ",";
+    	
+    	ras += dominatedBy.size() + ",";
+    	for(Map.Entry<Integer,HashSet<Integer>> kv : dominatedBy.entrySet())
+    	{
+    		int key = kv.getKey();
+    		HashSet<Integer> value = kv.getValue();
+    		ras += key + ",";
+    		ras += value.size() + ",";
+    		for(int i: value)
+    			ras += i + ",";
+    	}
+    	
+    	return ras;
+    }
+    
+    //NA only to differ between the other constructor
+    public RAS(String ras, int NA)
+    {
+    	parentConvexHullStates = new HashSet <Integer>();
+    	String[] tokens = ras.split(",");
+    	int itr = 0;
+    	safeCount = Integer.parseInt(tokens[itr]); itr++;
+    	int size = Integer.parseInt(tokens[itr]); itr++;
+    	for(int i = 0; i < size; i++)
+    	{
+    		Safe.add(Boolean.parseBoolean(tokens[itr])); itr++;
+    	}
+    	size = Integer.parseInt(tokens[itr]); itr++;
+    	for(int i = 0; i < size; i++)
+    	{
+    		MaxSafe.add(Integer.parseInt(tokens[itr])); itr++;
+    	}
+    	
+
+    	size = Integer.parseInt(tokens[itr]); itr++;
+    	for(int i = 0; i < size; i++)
+    	{
+    		MinBoundaryUnsafe.add(Integer.parseInt(tokens[itr])); itr++;
+    	}
+    	size = Integer.parseInt(tokens[itr]); itr++;
+    	for(int i = 0; i < size; i++)
+    	{
+    		MinBoundaryUnsafeUnseparable.add(Integer.parseInt(tokens[itr])); itr++;
+    	}
+    	size = Integer.parseInt(tokens[itr]); itr++;
+    	for(int i = 0; i < size; i++)
+    	{
+    		myConvexHullStates.add(Integer.parseInt(tokens[itr])); itr++;
+    	}
+    	size = Integer.parseInt(tokens[itr]); itr++;
+    	for(int i = 0; i < size; i++)
+    	{
+    		parentConvexHullStates.add(Integer.parseInt(tokens[itr])); itr++;
+    	}
+    	size = Integer.parseInt(tokens[itr]); itr++;
+    	for(int i = 0; i < size; i++)
+    	{
+    		nonBoundayUnsafe.add(Integer.parseInt(tokens[itr])); itr++;
+    	}
+
+    	size = Integer.parseInt(tokens[itr]); itr++;
+    	for(int i = 0; i < size; i++)
+    	{
+    		Integer key = Integer.parseInt(tokens[itr]); itr++;
+    		int vsize = Integer.parseInt(tokens[itr]); itr++;
+    		HashSet<Integer> value = new HashSet<Integer>();
+    		for(int j = 0; j < vsize; j++)
+    		{
+    			value.add(Integer.parseInt(tokens[itr])); itr++;
+    		}
+    		dominatedBy.put(key, value);
+    	}
+    	
+    }
+    
     public void CalculateSafeCount()
     {
         safeCount = 0;
@@ -174,7 +277,8 @@ HashSet<Integer> pointsReduced = new HashSet<Integer>();
         }
         
         
-        for(int MinState : MinBoundaryUnsafe)
+        //for(int MinState : MinBoundaryUnsafe)
+        for(int MinState : MinBoundaryUnsafeUnseparable)
         {
         	try
             {
@@ -182,50 +286,25 @@ HashSet<Integer> pointsReduced = new HashSet<Integer>();
             	cplex.setOut(null);
             	cplex.setParam(IloCplex.DoubleParam.TiLim, 60);
             	cplex.setWarning(null);
-            	IloObjective modelObj = cplex.addMinimize();
-            	IloRange [] rng = new IloRange[p+NumberOfVertices+2];
+            	IloObjective modelObj = cplex.addMaximize();
+            	IloRange [] rng = new IloRange[p+1];
             	
             	for (int j = 0; j < p; j++)
             		rng[j] = cplex.addRange(States.get(MinState)[j],Double.MAX_VALUE, "coverDim"+j);
-            	for (int j = 0; j < NumberOfVertices+1; j++)
-            		rng[p+j] = cplex.addRange(0,1, "binaryFlag"+j);
-            	rng[p+NumberOfVertices+1] = cplex.addRange(0,1, "convex");
+            	rng[p] = cplex.addRange(0,1, "convex");
             	IloNumVarArray var = new IloNumVarArray();
             	for(int i=0;i<NumberOfVertices;i++)
             	{
-            		IloColumn column = cplex.column(modelObj, 0);
+            		IloColumn column = cplex.column(modelObj, 1);
             		
      	            for ( int j = 0; j < p; j++ )
      	               column = column.and(cplex.column(rng[j], vertices[j][i]));
-     	            column = column.and(cplex.column(rng[p+i], -1));
      	            
-     	            column = column.and(cplex.column(rng[p+NumberOfVertices+1], 1));
+     	            column = column.and(cplex.column(rng[p], 1));
      	            
      	            var.add(cplex.numVar(column, 0., 1 ,"h"+i));
             	}
 
-            	//add min unsafe state
-            	{
-            		IloColumn column = cplex.column(modelObj, 0);
-            		for ( int j = 0; j < p; j++ )
-     	               column = column.and(cplex.column(rng[j], States.get(MinState)[j]));
-     	            column = column.and(cplex.column(rng[p+NumberOfVertices], -1));
-     	            column = column.and(cplex.column(rng[p+NumberOfVertices+1], 1));
-     	            var.add(cplex.numVar(column, 0., 1 ,"h"+NumberOfVertices));
-            	}
-
-            	for(int i=0;i<NumberOfVertices;i++)
-            	{
-            		IloColumn column = cplex.column(modelObj, 1);
-     	            column = column.and(cplex.column(rng[p+i], 1));
-     	            var.add(cplex.boolVar(column, "b"+i));
-            	}
-
-            	{
-            		IloColumn column = cplex.column(modelObj, MaxObjective);
-     	            column = column.and(cplex.column(rng[p+NumberOfVertices], 1));
-     	            var.add(cplex.boolVar(column, "b"+NumberOfVertices));
-            	}
 
                 int currItr = 0;
             	boolean change = true;
@@ -237,32 +316,33 @@ HashSet<Integer> pointsReduced = new HashSet<Integer>();
                     {
                     	double objective = cplex.getObjValue();
                     	
-                    	if(objective < MaxObjective)// the min unsafe is a combination of max unsafe
+                    	if(objective > eps)// the min unsafe is a combination of max unsafe
                     	{
                     		change = true;
-                    		double[] A = new double[NumberOfVertices];
-                    		double b = -eps;
+
                         	double[] x = new double[NumberOfVertices];
                             for (int i = 0; i < NumberOfVertices; i++)
                             {
                             	IloNumVar elem = var.getElement(i);
                             	x[i] = cplex.getValue(elem);
+                            }
+
+                            for (int i = 0; i < NumberOfVertices; i++)
+                            {
                             	if(x[i] > 0)
-                            	{
-                            		pointsReduced.add(points.get(i));
-                            		b += 1;
-                            		A[i] = 1;
-                            	}
+	                        	{
+	                        		pointsReduced.add(points.get(i));
+	
+	                        		IloLinearNumExpr exprNew = cplex.linearNumExpr();
+	                            	exprNew.addTerm(1, var._array[i]);
+	                            	cplex.addLe(exprNew, 0, "IgnoredVar"+currItr);
+	                            	currItr++;
+	                        	}
                             }
                             
-                            IloLinearNumExpr exprNew = cplex.linearNumExpr();
-                        	for(int k = 0; k<NumberOfVertices; k++)
-                        		exprNew.addTerm(A[k], var._array[k+1+NumberOfVertices]);
                         	
-                        	cplex.addLe(exprNew, b, "IgnoredConvexComb"+currItr);
-                        	currItr++;
                         	cplex.clearCuts();
-                        	cplex.solve();
+                        	//cplex.solve();
                     	}
            			}
                 }
@@ -824,12 +904,91 @@ HashSet<Integer> pointsReduced = new HashSet<Integer>();
         long time2 = System.currentTimeMillis();
      
     }
+    
+
+    public boolean LinearSpearable()
+    {
+    	p = p - r;
+        double eps = 0.0001;
+    	MinBoundaryUnsafeUnseparable.clear();
+    	try
+        {
+            IloCplex cplex = new IloCplex();
+            cplex.setParam(IloCplex.IntParam.AdvInd, 0);
+            
+            cplex.setOut(null);
+            IloObjective modelObj = cplex.addMaximize();
+        	IloRange [] rng =  new IloRange[MaxSafe.size()];
+
+        	for (int i = 0; i < MaxSafe.size(); i++)
+        		rng[i] = cplex.addRange(Double.MAX_VALUE*-1,0, "Safe"+i);
+        	IloNumVarArray var = new IloNumVarArray();
+        	//Hyerplane coefficients
+        	for(int j=0;j<p;j++)
+        	{
+        		 IloColumn column = cplex.column(modelObj, 0);
+        		 int itr = 0;
+        		 for (int MSsafe : MaxSafe)
+        		 {
+        			 int[] x = States.get(MSsafe);
+        			 if(x[j] != 0)
+        				 column = column.and(cplex.column(rng[itr], x[j]));
+        			 itr++;
+        		 }
+ 	             var.add(cplex.numVar(column, 0., 1 ,"a"+j));
+        	}
+        	//Intercept
+        	IloColumn columnB = cplex.column(modelObj, 0);
+        	for (int i = 0; i < MaxSafe.size(); i++)
+        		columnB = columnB.and(cplex.column(rng[i], -1));
+        	var.add(cplex.numVar(columnB, 0., 1 ,"b"));
+        	
+        	
+        	for (int MinUnsafe : MinBoundaryUnsafe)
+        	{
+        		IloLinearNumExpr exprNew = cplex.linearNumExpr();
+        		
+        		int[] x = States.get(MinUnsafe);
+        		for(int j = 0; j < p; j++)
+	        		if(x[j] != 0)
+	        			exprNew.addTerm(x[j], var._array[j]);
+        		
+        		exprNew.addTerm(-1, var._array[p]);
+            	
+            	IloRange myConstraint = cplex.addGe(exprNew, eps, "UnsafeState");
+            	if(cplex.solve())
+            	{
+            		int abc = 0;
+            	}
+            	else
+            	{
+            		MinBoundaryUnsafeUnseparable.add(MinUnsafe);
+            	}
+            	cplex.delete(myConstraint);
+            	cplex.clearCuts();
+            	
+        	}
+            
+            
+            cplex.end();
+           
+        }
+        catch (Exception e)
+        {
+            System.out.println("Concert exception caught: " + e);
+        }
+    	p = p + r;
+    	if(MinBoundaryUnsafeUnseparable.size()==0)
+    		return true;
+    	
+    	return false;
+    }
 
     /// <summary>
     /// check whether the maximal safe and minimal unsafe are linearly separable or not.
     /// </summary>
     /// <returns></returns>
-    public boolean LinearSpearable()
+    public boolean LinearSpearable2()
     {
     	p = p - r;
         //Ahmed -- M can be set to p * max val in states

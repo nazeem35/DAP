@@ -19,6 +19,62 @@ import java.util.stream.IntStream;
 class Algorithm
 {
     String path;
+    int MaxExplore = 10;
+    int MinExplore = 2;
+    int tempFile = 0;
+    
+    public String WriteTempExplore(List<RAS> rass)
+    {
+    	String file = "temp" + tempFile + ".txt";
+    	tempFile++;
+
+    	try
+    	{
+	    	BufferedWriter writer = new BufferedWriter(new OutputStreamWriter
+	        		(new FileOutputStream(path + file)));
+	        
+	    	writer.write("" + rass.size());
+	    	writer.newLine();
+            for(RAS ras: rass)
+	        {
+	            writer.write(ras.toString());
+	            writer.newLine();
+	        }
+	        writer.close();
+    	}
+    	catch(Exception e)
+    	{
+    		
+    	}
+    	
+    	return file;
+    }
+    
+    public List<RAS> ReadTempExplore(String file)
+    {
+    	List<RAS> rass = new ArrayList<RAS>();
+    	try
+    	{
+	    	BufferedReader reader = new BufferedReader(new FileReader(path + file));
+	    	
+	    	int count = Integer.parseInt(reader.readLine());
+
+	        for (int i = 0; i < count; i++)
+	        {
+	            RAS temp = new RAS(reader.readLine(), 0);
+	            rass.add(temp);
+	        }
+	        
+	        reader.close();
+    	}
+    	catch(Exception e)
+    	{
+    		
+    	}
+    	
+    	return rass;
+    }
+    
     public Algorithm(String p)
     {
         path = p;
@@ -117,7 +173,8 @@ class Algorithm
 	                MaximalPolicies.get(i);
 					for (int itr = 0; itr < RAS.States.size(); itr++)
 	                {
-	                    if (MaximalPolicies.get(i).MaxSafe.contains(itr))
+	                    if (MaximalPolicies.get(i).Safe.get(itr))
+		                //if (MaximalPolicies.get(i).MaxSafe.contains(itr))
 	                    {
 	                        writer.write(itr+" : "+join(",", RAS.States.get(itr),RAS.p-RAS.r) );
 	                        writer.newLine();
@@ -186,10 +243,25 @@ class Algorithm
             List<RAS> MaximalPolicies = new ArrayList<RAS>();
             //Queue<RAS> Explore = new LinkedList<>();
             PriorityQueue<RAS> Explore = new PriorityQueue<RAS>();
+            Stack<String> ExploreTempFiles = new Stack<String>();
+            
             Explore.add(ras);
             int numExplored = 0;
-            while (Explore.size() > 0)
+            while ((Explore.size() > 0) || (ExploreTempFiles.size() >0))
             {
+            	if(Explore.size() == 0)
+            	{
+            		List<RAS> temp = ReadTempExplore(ExploreTempFiles.pop());
+            		for(RAS tempras:temp)
+            			Explore.add(tempras);
+            	}
+            	else if(Explore.size() > MaxExplore)
+            	{
+            		List<RAS> temp = new ArrayList<RAS>();
+            		for(int itr = 0; itr < MaxExplore - MinExplore; itr++)
+            			temp.add(Explore.poll());
+            		ExploreTempFiles.add(WriteTempExplore(temp));
+            	}
                 numExplored++;
                 RAS current = Explore.poll();
                 current.applyPruning();
@@ -237,14 +309,30 @@ class Algorithm
         {
             List<RAS> MaximalPolicies = new ArrayList<RAS>();
             Stack<RAS> Explore = new Stack<RAS>();
+            Stack<String> ExploreTempFiles = new Stack<String>();
+            
             RAS ras = new RAS(path + "PT222");
             Explore.push(ras);
             int numExplored = 0;
             List<HashSet<Integer>> exploredConfig = new ArrayList<HashSet<Integer>>();
             int numRedundantMaxSafe = 0;
             int numDominated = 0;
-            while (Explore.size() > 0)
+            while ((Explore.size() > 0) || (ExploreTempFiles.size() > 0))
             {
+            	//read one file from temp files
+            	if(Explore.size() == 0)
+            	{
+            		List<RAS> temp = ReadTempExplore(ExploreTempFiles.pop());
+            		for(RAS tempras:temp)
+            			Explore.push(tempras);
+            	}
+            	else if(Explore.size() > MaxExplore)
+            	{
+            		List<RAS> temp = new ArrayList<RAS>();
+            		for(int itr = 0; itr < MaxExplore - MinExplore; itr++)
+            			temp.add(Explore.pop());
+            		ExploreTempFiles.add(WriteTempExplore(temp));
+            	}
                 numExplored++;
                 RAS current = Explore.pop();
                 if(current.safeCount <= maxsize)
@@ -331,16 +419,35 @@ class Algorithm
 
             List<RAS> MaximalPolicies = new ArrayList<RAS>();
             Stack<RAS> Explore = new Stack<RAS>();
-            RAS ras = new RAS(path + "PT222");
+            //PriorityQueue<RAS> Explore = new PriorityQueue<RAS>();
+            Stack<String> ExploreTempFiles = new Stack<String>();
+            
+            RAS ras = new RAS(path + "PT224");
             Explore.push(ras);
+            //Explore.add(ras);
             int numExplored = 0;
             List<HashSet<Integer>> exploredConfig = new ArrayList<HashSet<Integer>>();
             int numRedundantMaxSafe = 0;
             int numDominated = 0;
-            while (Explore.size() > 0)
+            while ((Explore.size() > 0) || (ExploreTempFiles.size() > 0))
             {
+            	//read one file from temp files
+            	if(Explore.size() == 0)
+            	{
+            		List<RAS> temp = ReadTempExplore(ExploreTempFiles.pop());
+            		for(RAS tempras:temp)
+            			Explore.push(tempras);
+            	}
+            	else if(Explore.size() > MaxExplore)
+            	{
+            		List<RAS> temp = new ArrayList<RAS>();
+            		for(int itr = 0; itr < MaxExplore - MinExplore; itr++)
+            			temp.add(Explore.pop());
+            		ExploreTempFiles.add(WriteTempExplore(temp));
+            	}
                 numExplored++;
                 RAS current = Explore.pop();
+                //RAS current = Explore.poll();
                 //current.applyPruning();
                 if(exploredBefore(current,exploredConfig))
                 {
@@ -397,7 +504,7 @@ class Algorithm
             System.out.println("Total Explored = "+numExplored);
             System.out.println("Redundant Config = "+numRedundantMaxSafe);
             System.out.println("Dominated by maximal policies = "+numDominated);
-            WriteMaximalRAS(pn, numExplored, MaximalPolicies, Explore);
+            WriteMaximalRAS(pn, numExplored, MaximalPolicies, new Stack<RAS>());
             if (numExplored == 1)
                 linearcount++;
         }
@@ -499,11 +606,11 @@ class Algorithm
 	        {
 	        	BufferedReader reader = new BufferedReader(new FileReader(path + "Maximal DAP" + pn + ".txt"));
 	            String line = reader.readLine();
-	            if (line .equals( "linear"))
-	            {
+	            //if (line .equals( "linear"))
+	            //{
 	
-	            }
-	            else
+	            //}
+	            //else
 	            {
 	                writer.write(pn);
 	                writer.newLine();
