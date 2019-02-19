@@ -422,7 +422,7 @@ class Algorithm
             //PriorityQueue<RAS> Explore = new PriorityQueue<RAS>();
             Stack<String> ExploreTempFiles = new Stack<String>();
             
-            RAS ras = new RAS(path + "PT224");
+            RAS ras = new RAS(path + "PT222");
             Explore.push(ras);
             //Explore.add(ras);
             int numExplored = 0;
@@ -504,6 +504,7 @@ class Algorithm
             System.out.println("Total Explored = "+numExplored);
             System.out.println("Redundant Config = "+numRedundantMaxSafe);
             System.out.println("Dominated by maximal policies = "+numDominated);
+            System.out.println("Number of maximal policies = "+MaximalPolicies.size());
             WriteMaximalRAS(pn, numExplored, MaximalPolicies, new Stack<RAS>());
             if (numExplored == 1)
                 linearcount++;

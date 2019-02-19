@@ -625,6 +625,21 @@ HashSet<Integer> pointsReduced = new HashSet<Integer>();
     	long startTime = System.currentTimeMillis();
     	//Init boundary unsafe
     	MinBoundaryUnsafe = new HashSet<Integer>(parent.MinBoundaryUnsafe);
+    	HashSet<Integer> nonMinimalBoundaryUnsafe = new HashSet<Integer>();
+    	for(int i:MinBoundaryUnsafe)
+    	{
+    		Boolean isBoundary = false;
+    		for(int j : PreviousStates.get(i))
+    		{
+    			if(Safe.get(j))
+    			{
+    				isBoundary = true;
+    				break;
+    			}
+    		}
+    		if (!isBoundary)
+    			nonMinimalBoundaryUnsafe.add(i);
+    	}
     	//Add new unsafe as candidates
     	 for(int i = 0; i < States.size(); i++)
     	 {
@@ -643,7 +658,7 @@ HashSet<Integer> pointsReduced = new HashSet<Integer>();
          }
     	 //Extract the min ones
     	 int [] tokens2 = new int[p-r];
-    	 HashSet<Integer> nonMinimalBoundaryUnsafe = new HashSet<Integer>();
+    	 
     	 for(int i:MinBoundaryUnsafe)
          {
     		 populateMaxMin(i,tokens2,1,nonMinimalBoundaryUnsafe);
