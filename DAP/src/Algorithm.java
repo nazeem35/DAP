@@ -19,8 +19,8 @@ import java.util.stream.IntStream;
 class Algorithm
 {
     String path;
-    int MaxExplore = 10;
-    int MinExplore = 2;
+    int MaxExplore = 100000;
+    int MinExplore = 20000;
     int tempFile = 0;
     
     public String WriteTempExplore(List<RAS> rass)
@@ -237,7 +237,7 @@ class Algorithm
         {
             //Create a RAS from PN file
             //RAS ras = new RAS(path + "pn" + pn + ".txt");
-            RAS ras = new RAS(path + "PT222");
+            RAS ras = new RAS(path + "PTE");
 
 
             List<RAS> MaximalPolicies = new ArrayList<RAS>();
@@ -311,10 +311,12 @@ class Algorithm
             Stack<RAS> Explore = new Stack<RAS>();
             Stack<String> ExploreTempFiles = new Stack<String>();
             
-            RAS ras = new RAS(path + "PT222");
+            RAS ras = new RAS(path + "PTE");
             Explore.push(ras);
             int numExplored = 0;
-            List<HashSet<Integer>> exploredConfig = new ArrayList<HashSet<Integer>>();
+            List<List<HashSet<Integer>>> exploredConfig = new ArrayList<List<HashSet<Integer>>>();
+            for(int itr = 0; itr <= ras.safeCount; itr++)
+            	exploredConfig.add(new ArrayList<HashSet<Integer>>());
             int numRedundantMaxSafe = 0;
             int numDominated = 0;
             while ((Explore.size() > 0) || (ExploreTempFiles.size() > 0))
@@ -344,7 +346,7 @@ class Algorithm
                 	numRedundantMaxSafe++;
                 	continue;
                 }
-                exploredConfig.add(current.MaxSafe);
+                exploredConfig.get(current.safeCount).add(current.MaxSafe);
                 if (!RASinPolicies(MaximalPolicies, current))
                 {	
                     if (current.LinearSpearable())
@@ -422,11 +424,14 @@ class Algorithm
             //PriorityQueue<RAS> Explore = new PriorityQueue<RAS>();
             Stack<String> ExploreTempFiles = new Stack<String>();
             
-            RAS ras = new RAS(path + "PT222");
+            RAS ras = new RAS(path + "PTU1");
             Explore.push(ras);
             //Explore.add(ras);
             int numExplored = 0;
-            List<HashSet<Integer>> exploredConfig = new ArrayList<HashSet<Integer>>();
+            List<List<HashSet<Integer>>> exploredConfig = new ArrayList<List<HashSet<Integer>>>();
+            for(int itr = 0; itr <= ras.safeCount; itr++)
+            	exploredConfig.add(new ArrayList<HashSet<Integer>>());
+            
             int numRedundantMaxSafe = 0;
             int numDominated = 0;
             while ((Explore.size() > 0) || (ExploreTempFiles.size() > 0))
@@ -454,7 +459,7 @@ class Algorithm
                 	numRedundantMaxSafe++;
                 	continue;
                 }
-                exploredConfig.add(current.MaxSafe);
+                exploredConfig.get(current.safeCount).add(current.MaxSafe);
                 if (!RASinPolicies(MaximalPolicies, current))
                 {	
                     if (current.LinearSpearable())
@@ -466,7 +471,7 @@ class Algorithm
                     else
                     {
                         List<Integer> CH = current.ConvexHull(); //new List<int>(current.MaxSafe);
-                        /*for (int i = 0; i < CH.size(); i++)
+                        for (int i = 0; i < CH.size(); i++)
                         {
                         	RAS newras = new RAS(current,CH.get(i));
                         	newras.applyPruning();
@@ -474,8 +479,11 @@ class Algorithm
                              	Explore.push(newras);
                              else
                              	numDominated++;
-                        }*/
-                        List<RAS> ToBePruned = new ArrayList<RAS>();
+                        	 //List<RAS> MaximalPolicies2 = new ArrayList<RAS>();
+                        	 //MaximalPolicies2.add(newras);
+                        	 //WriteMaximalRAS(100, 0, MaximalPolicies2, new Stack<RAS>());
+                        }
+                        /*List<RAS> ToBePruned = new ArrayList<RAS>();
                         for(int i = 0; i < CH.size(); i++)
                         {
                         	ToBePruned.add(new RAS(current,CH.get(i)));
@@ -487,7 +495,7 @@ class Algorithm
 	                          	Explore.push(ToBePruned.get(i));
 	                          else
 	                          	numDominated++;
-                        }
+                        }*/
                     }
                     
                 }
@@ -530,7 +538,9 @@ class Algorithm
             RAS ras = new RAS(path + "pn9.txt");
             Explore.add(ras);
             int numExplored = 0;
-            List<HashSet<Integer>> exploredConfig = new ArrayList<HashSet<Integer>>();
+            List<List<HashSet<Integer>>> exploredConfig = new ArrayList<List<HashSet<Integer>>>();
+            for(int itr = 0; itr <= ras.safeCount; itr++)
+            	exploredConfig.add(new ArrayList<HashSet<Integer>>());
             int numRedundantMaxSafe = 0;
             int numDominated = 0;
             while (Explore.size() > 0)
@@ -543,7 +553,7 @@ class Algorithm
                 	numRedundantMaxSafe++;
                 	continue;
                 }
-                exploredConfig.add(current.MaxSafe);
+                exploredConfig.get(current.safeCount).add(current.MaxSafe);
                 if (!RASinPolicies(MaximalPolicies, current))
                 {	
                     if (current.LinearSpearable())
@@ -586,9 +596,9 @@ class Algorithm
     }
 
 
-   boolean exploredBefore(RAS current,List<HashSet<Integer>> exploredConfig)
+   boolean exploredBefore(RAS current,List<List<HashSet<Integer>>> exploredConfig)
    {
-	   for(HashSet<Integer> maxSafeSet:exploredConfig)
+	   for(HashSet<Integer> maxSafeSet:exploredConfig.get(current.safeCount))
 	   {
 		   if(current.MaxSafe.equals(maxSafeSet))
 			   return true;

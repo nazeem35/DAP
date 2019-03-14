@@ -10,8 +10,11 @@ import java.io.FileReader;
 //import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.LinkedList;
 import java.util.Map;
@@ -157,7 +160,112 @@ public class RAS implements Comparable<RAS>
             if (Safe.get(i))
                 safeCount++;
     }
+    
+    public HashSet<Integer> RemoveLinearSeparable(List<Integer> SafeSet, HashSet<Integer> SafeSubset, int MinUnsafe)
+    {
+        HashSet<Integer> NewSafeSubset = new HashSet<Integer>();
+    	
+        double eps = 0.0001;
+    	try
+        {
+            IloCplex cplex = new IloCplex();
+            cplex.setParam(IloCplex.IntParam.AdvInd, 0);
+            
+            cplex.setOut(null);
+            IloObjective modelObj = cplex.addMaximize();
+        	IloRange [] rng =  new IloRange[SafeSet.size()];
 
+        	for (int i = 0; i < SafeSet.size(); i++)
+        		rng[i] = cplex.addRange(Double.MAX_VALUE*-1,0, "Safe"+i);
+        	IloNumVarArray var = new IloNumVarArray();
+        	//Hyerplane coefficients
+        	for(int j=0;j<p;j++)
+        	{
+        		 IloColumn column = cplex.column(modelObj, 0);
+        		 int itr = 0;
+        		 for (int MSsafe : SafeSet)
+        		 {
+        			 int[] x = States.get(MSsafe);
+        			 if(x[j] != 0)
+        				 column = column.and(cplex.column(rng[itr], x[j]));
+        			 itr++;
+        		 }
+ 	             var.add(cplex.numVar(column, 0., 1 ,"a"+j));
+        	}
+        	//Intercept
+        	IloColumn columnB = cplex.column(modelObj, 0);
+        	for (int i = 0; i < SafeSet.size(); i++)
+        		columnB = columnB.and(cplex.column(rng[i], -1));
+        	var.add(cplex.numVar(columnB, 0., 1 ,"b"));
+        	
+        	   
+        	IloLinearNumExpr exprNew = cplex.linearNumExpr();
+        		
+        	int[] x = States.get(MinUnsafe);
+        	for(int j = 0; j < p; j++)
+	        	if(x[j] != 0)
+	        		exprNew.addTerm(x[j], var._array[j]);
+        		
+        	exprNew.addTerm(-1, var._array[p]);
+            	
+            IloRange myConstraint = cplex.addGe(exprNew, eps, "UnsafeState");
+
+            for (int MaxSafe : SafeSubset)
+            {
+            	// delete the constraint corresponding to a certain state in the safe subset
+            	int index = SafeSet.indexOf(MaxSafe);
+            	cplex.remove(rng[index]);
+            	cplex.clearCuts();
+            	// check if the unsafe state is  linearly separable
+            	if(cplex.solve())
+            	{
+            		NewSafeSubset.add(MaxSafe);
+            	}
+            	else
+            	{
+            		//NewSafeSubset.add(MaxSafe);
+            	}
+            	// add the constraint
+            	cplex.add(rng[index]);
+            	cplex.clearCuts();
+            	
+        	}
+            
+            
+            cplex.end();
+           
+        }
+        catch (Exception e)
+        {
+            System.out.println("Concert exception caught: " + e);
+        }
+    	
+    	return NewSafeSubset;
+    }
+
+    public static HashMap<Integer, Double> sortByValue(HashMap<Integer, Double> hm) 
+    { 
+        // Create a list from elements of HashMap 
+        List<Map.Entry<Integer, Double> > list = 
+               new LinkedList<Map.Entry<Integer, Double> >(hm.entrySet()); 
+  
+        // Sort the list 
+        Collections.sort(list, new Comparator<Map.Entry<Integer, Double> >() { 
+            public int compare(Map.Entry<Integer, Double> o1,  
+                               Map.Entry<Integer, Double> o2) 
+            { 
+                return (o1.getValue()).compareTo(o2.getValue()); 
+            } 
+        }); 
+          
+        // put data from sorted list to hashmap  
+        HashMap<Integer, Double> temp = new LinkedHashMap<Integer, Double>(); 
+        for (Map.Entry<Integer, Double> aa : list) { 
+            temp.put(aa.getKey(), aa.getValue()); 
+        } 
+        return temp; 
+    }
+    
     public List<Integer> ConvexHull()
     {
     	//System.out.println("Entered Convex Hull");
@@ -261,7 +369,8 @@ public class RAS implements Comparable<RAS>
         /////////////////////////////////////////////////////////////////////////////////////////////////////////////
         // Only return the convex hull states that are in the convex hull of the minimal states
         /////////////////////////////////////////////////////////////////////////////////////////////////////////////
-HashSet<Integer> pointsReduced = new HashSet<Integer>();
+       
+        HashMap<Integer,Double> pointsReduced = new HashMap<Integer,Double>();
         
         double eps = 10e-6;
     	double MaxObjective = 1000000;
@@ -326,17 +435,39 @@ HashSet<Integer> pointsReduced = new HashSet<Integer>();
                             	IloNumVar elem = var.getElement(i);
                             	x[i] = cplex.getValue(elem);
                             }
+                            
+                            //HashSet<Integer> SafeSubset = new HashSet<Integer>();
+                            //for (int i = 0; i < NumberOfVertices; i++)
+                            //{
+                            //	if(x[i] > 0)
+	                        //	{
+                            //		SafeSubset.add(points.get(i));
+	                        //	}
+                            //}
+                            //HashSet<Integer> NewSubset = RemoveLinearSeparable(points, SafeSubset, MinState);
 
                             for (int i = 0; i < NumberOfVertices; i++)
                             {
                             	if(x[i] > 0)
 	                        	{
-	                        		pointsReduced.add(points.get(i));
-	
-	                        		IloLinearNumExpr exprNew = cplex.linearNumExpr();
-	                            	exprNew.addTerm(1, var._array[i]);
-	                            	cplex.addLe(exprNew, 0, "IgnoredVar"+currItr);
-	                            	currItr++;
+                            		//if(NewSubset.contains(points.get(i)))
+                            		{
+                            			if(pointsReduced.containsKey(points.get(i)))
+                            			{
+                            				double value = Math.max(x[i], pointsReduced.get(points.get(i)));
+                            				pointsReduced.put(points.get(i), value);
+                            			}
+                            			else
+                            			{
+                            				pointsReduced.put(points.get(i), x[i]);
+                            			}
+    	                        		//pointsReduced.add(points.get(i));
+    	
+    	                        		IloLinearNumExpr exprNew = cplex.linearNumExpr();
+    	                            	exprNew.addTerm(1, var._array[i]);
+    	                            	cplex.addLe(exprNew, 0, "IgnoredVar"+currItr);
+    	                            	currItr++;
+                            		}
 	                        	}
                             }
                             
@@ -355,7 +486,14 @@ HashSet<Integer> pointsReduced = new HashSet<Integer>();
         }
         
         p = p + r;
-        List<Integer> result = new ArrayList<Integer>(pointsReduced);
+        Map<Integer, Double> sortedPoints = sortByValue(pointsReduced); 
+        
+        List<Integer> result = new ArrayList<Integer>();
+        // add the sorted reduced points to the output 
+        for (Map.Entry<Integer, Double> en : sortedPoints.entrySet()) { 
+            result.add(en.getKey());
+        }
+        
         return result;
         
     }
