@@ -19,13 +19,17 @@ import java.util.stream.IntStream;
 class Algorithm
 {
     String path;
-    int MaxExplore = 100000;
-    int MinExplore = 20000;
+    int MaxExplore = 8;
+    int MinExplore = 2;
     int tempFile = 0;
+    long startTime;
+    List<Long> MaxPolicyTime = new ArrayList<Long>();
+    List<Integer> MaxPolicySize = new ArrayList<Integer>();
+    String RASInfo = "";
     
-    public String WriteTempExplore(List<RAS> rass)
+    public String WriteTempExplore(List<RAS> rass, int pn)
     {
-    	String file = "temp" + tempFile + ".txt";
+    	String file = "" + pn + "temp" + tempFile + ".txt";
     	tempFile++;
 
     	try
@@ -135,6 +139,16 @@ class Algorithm
                 policies.remove(i);
         }
         policies.add(ras);
+        if(MaxPolicySize.size()==0)
+        {
+            MaxPolicySize.add(ras.safeCount);
+            MaxPolicyTime.add(System.currentTimeMillis() - startTime);
+        }
+        else if (ras.safeCount > MaxPolicySize.get(MaxPolicySize.size() - 1))
+        {
+            MaxPolicySize.add(ras.safeCount);
+            MaxPolicyTime.add(System.currentTimeMillis() - startTime);
+        }
         return policies;
     }
     
@@ -162,14 +176,36 @@ class Algorithm
 	        }
 	        else
 	        {
-	            writer.write("" + numExplored);
-	            writer.newLine();
-	            writer.write("" + MaximalPolicies.size());
-	            writer.newLine();
+                    writer.write(RASInfo);
+                    writer.newLine();
+                    writer.write("" + MaxPolicySize.size());
+                    writer.newLine();
+                    for(int i = 0; i < MaxPolicySize.size(); i++)
+                    {
+                        writer.write("" + MaxPolicyTime.get(i) + "," + MaxPolicySize.get(i));
+                        writer.newLine();
+                    }
+	        	writer.write("" + MaximalPolicies.get(0).safeCount);
+	        	writer.newLine();
+	        	for(int i = 0; i < RAS.NextStates.size(); i++)
+	        	{
+	        		if(MaximalPolicies.get(0).Safe.get(i))
+	        		{
+	        			writer.write(i + " :");
+	        			for(int j : RAS.NextStates.get(i))
+	        				if(MaximalPolicies.get(0).Safe.get(j))
+	        					writer.write(" " + j);
+	        			writer.newLine();
+	        		}
+	        	}
+	            //writer.write("" + numExplored);
+	            //writer.newLine();
+	            //writer.write("" + MaximalPolicies.size());
+	            //writer.newLine();
 	            for (int i = 0; i < MaximalPolicies.size(); i++)
 	            {
-	                writer.write("" + i);
-	                writer.newLine();
+	                //writer.write("" + i);
+	                //writer.newLine();
 	                MaximalPolicies.get(i);
 					for (int itr = 0; itr < RAS.States.size(); itr++)
 	                {
@@ -260,7 +296,7 @@ class Algorithm
             		List<RAS> temp = new ArrayList<RAS>();
             		for(int itr = 0; itr < MaxExplore - MinExplore; itr++)
             			temp.add(Explore.poll());
-            		ExploreTempFiles.add(WriteTempExplore(temp));
+            		ExploreTempFiles.add(WriteTempExplore(temp, pn));
             	}
                 numExplored++;
                 RAS current = Explore.poll();
@@ -301,10 +337,9 @@ class Algorithm
     
     public void SolvePNMax2()
     {
-       
         int linearcount = 0;
         int maxsize = 0;
-        long startTime = System.currentTimeMillis();
+        startTime = System.currentTimeMillis();
         for (int pn = 5; pn <= 5; pn++)
         {
             List<RAS> MaximalPolicies = new ArrayList<RAS>();
@@ -331,9 +366,12 @@ class Algorithm
             	else if(Explore.size() > MaxExplore)
             	{
             		List<RAS> temp = new ArrayList<RAS>();
-            		for(int itr = 0; itr < MaxExplore - MinExplore; itr++)
+            		for(int itr = MaxExplore - MinExplore; itr < MaxExplore; itr++)
             			temp.add(Explore.pop());
-            		ExploreTempFiles.add(WriteTempExplore(temp));
+            		ExploreTempFiles.add(WriteTempExplore(Explore, pn));
+                        Explore.clear();
+                        for(int itr = temp.size() - 1; itr >= 0; itr--)
+                            Explore.add(temp.get(itr));
             	}
                 numExplored++;
                 RAS current = Explore.pop();
@@ -412,10 +450,14 @@ class Algorithm
     
     public void SolvePN()
     {
-       
+        
+       Boolean first = true;
+        startTime = System.currentTimeMillis();
         int linearcount = 0;
-        long startTime = System.currentTimeMillis();
-        for (int pn = 1; pn <= 1; pn++)
+        //for (int pn = 558; pn <= 558; pn++)
+        // 558, 565, 605, 621, 
+        //642, 643, 897, 1010, 1026, 1034, 1040
+        int pn = 1;
         {
            
 
@@ -424,7 +466,21 @@ class Algorithm
             //PriorityQueue<RAS> Explore = new PriorityQueue<RAS>();
             Stack<String> ExploreTempFiles = new Stack<String>();
             
-            RAS ras = new RAS(path + "PTU1");
+            RAS ras = new RAS(path + "PTL1");
+            
+            RASInfo = "Number of reachable safe states "+ras.safeCount;
+            RASInfo += "\nNumber of maximal safe states "+ras.MaxSafe.size();
+            RASInfo += "\nNumber of minimal unsafe states "+ras.MinBoundaryUnsafe.size();
+            RASInfo += "\nDim = "+(ras.p-ras.r);
+            
+            /*MaximalPolicies.add(ras);
+            WriteMaximalRAS(pn, 0, MaximalPolicies, new Stack<RAS>());
+            for(int i = 0; i < ras.States.size(); i++)
+            {
+            	if((ras.States.get(i)[17] + ras.States.get(i)[18]) == 2)
+            		ras.Safe.set(i, false);
+            }
+            ras.CalculateSafeCount();*/
             Explore.push(ras);
             //Explore.add(ras);
             int numExplored = 0;
@@ -446,9 +502,12 @@ class Algorithm
             	else if(Explore.size() > MaxExplore)
             	{
             		List<RAS> temp = new ArrayList<RAS>();
-            		for(int itr = 0; itr < MaxExplore - MinExplore; itr++)
+            		for(int itr = MaxExplore - MinExplore; itr < MaxExplore; itr++)
             			temp.add(Explore.pop());
-            		ExploreTempFiles.add(WriteTempExplore(temp));
+            		ExploreTempFiles.add(WriteTempExplore(Explore, pn));
+                        Explore.clear();
+                        for(int itr = temp.size() - 1; itr >= 0; itr--)
+                            Explore.add(temp.get(itr));
             	}
                 numExplored++;
                 RAS current = Explore.pop();
@@ -471,6 +530,11 @@ class Algorithm
                     else
                     {
                         List<Integer> CH = current.ConvexHull(); //new List<int>(current.MaxSafe);
+                        if(first)
+                        {
+                            first = false;
+                            RASInfo += "\n Number of states to prune at the first step is " + CH.size();
+                        }
                         for (int i = 0; i < CH.size(); i++)
                         {
                         	RAS newras = new RAS(current,CH.get(i));
@@ -506,6 +570,13 @@ class Algorithm
                 	System.out.println("Current stack size " + Explore.size() +  " ,number explored "+numExplored+ ", redundant = "+numRedundantMaxSafe+", dominated "+numDominated);
                 }
                 
+                //if((System.currentTimeMillis() - startTime > 48*3600*1000) && (MaximalPolicies.size() > 0))
+                if((System.currentTimeMillis() - startTime > 48*3600*1000))
+                {
+                    System.out.println("Early exit");
+                    break;
+                }
+                                    
             }
             long duration = System.currentTimeMillis() - startTime;
             System.out.println("Total time = "+duration/1000);
@@ -606,35 +677,5 @@ class Algorithm
 	   return false;
    }
 
-    public void WriteResults()
-    {
-    	try
-    	{
-	    	BufferedWriter writer = new BufferedWriter(new OutputStreamWriter
-	        		(new FileOutputStream(path + "Maximal IDs.txt")));
-	      
-	        for (int pn = 1; pn <= 1000; pn++)
-	        {
-	        	BufferedReader reader = new BufferedReader(new FileReader(path + "Maximal DAP" + pn + ".txt"));
-	            String line = reader.readLine();
-	            //if (line .equals( "linear"))
-	            //{
-	
-	            //}
-	            //else
-	            {
-	                writer.write(pn);
-	                writer.newLine();
-	            }
-	            reader.close();
-	        }
-	        writer.close();
-    	}
-    	catch(Exception e)
-    	{
-    		
-    	}
-        System.out.println("Finished");
-    }
 
 }
