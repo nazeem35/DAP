@@ -1,8 +1,10 @@
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 //import java.io.BufferedWriter;
 //import java.io.FileInputStream;
 //import java.io.FileOutputStream;
 import java.io.FileReader;
+import java.io.IOException;
 //import java.io.InputStream;
 //import java.io.InputStreamReader;
 //import java.io.OutputStreamWriter;
@@ -91,6 +93,50 @@ public class RAS implements Comparable<RAS>
     	}
     	
     	return ras;
+    }
+    
+    public void WriteAsALine(BufferedWriter writer)
+    {
+    	try {
+    		writer.write("" + safeCount + ",");
+    		writer.write(Safe.size() + ",");
+        	for(int i = 0;i < Safe.size(); i++)
+        		writer.write(Safe.get(i) + ",");
+        		writer.write(MaxSafe.size() + ",");
+        	for(int i: MaxSafe)
+        		writer.write(i + ",");
+        	
+        	writer.write(MinBoundaryUnsafe.size() + ",");
+        	for(int i: MinBoundaryUnsafe)
+        		writer.write(i + ",");
+        	writer.write(MinBoundaryUnsafeUnseparable.size() + ",");
+        	for(int i: MinBoundaryUnsafeUnseparable)
+        		writer.write(i + ",");
+        	writer.write(myConvexHullStates.size() + ",");
+        	for(int i: myConvexHullStates)
+        		writer.write(i + ",");
+        	writer.write(parentConvexHullStates.size() + ",");
+        	for(int i: parentConvexHullStates)
+        		writer.write(i + ",");
+        	writer.write(nonBoundayUnsafe.size() + ",");
+        	for(int i: nonBoundayUnsafe)
+        		writer.write(i + ",");
+        	
+        	writer.write(dominatedBy.size() + ",");
+        	for(Map.Entry<Integer,HashSet<Integer>> kv : dominatedBy.entrySet())
+        	{
+        		int key = kv.getKey();
+        		HashSet<Integer> value = kv.getValue();
+        		writer.write(key + ",");
+        		writer.write(value.size() + ",");
+        		for(int i: value)
+        			writer.write(i + ",");
+        	}
+			writer.newLine();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
     }
     
     //NA only to differ between the other constructor
@@ -641,6 +687,15 @@ public class RAS implements Comparable<RAS>
         	}
         }
         System.out.println("Total = "+States.size()+", Number of safe "+l_numSafe+" , number of unsafe = "+(States.size()-l_numSafe));
+        
+        for(int i = 0; i < States.size(); i++)
+        {
+        	if(!Safe.get(i))
+        	{
+        		//System.out.println(join(",", States.get(i), p-r));
+        	}
+        }
+        
         return;
     }
 
@@ -1056,6 +1111,151 @@ public class RAS implements Comparable<RAS>
         CalculateSafeCount();
         long time2 = System.currentTimeMillis();
      
+    }
+    
+    public List<List<Double>> LinearPlans()
+    {
+    	List<List<Double>> Plans = new ArrayList<List<Double>>();
+
+    	p = p - r;
+        double eps = 0.0001;
+    	MinBoundaryUnsafeUnseparable.clear();
+    	try
+        {
+            IloCplex cplex = new IloCplex();
+            cplex.setParam(IloCplex.IntParam.AdvInd, 0);
+            
+            cplex.setOut(null);
+            IloObjective modelObj = cplex.addMaximize();
+        	IloRange [] rng =  new IloRange[MaxSafe.size()];
+
+        	for (int i = 0; i < MaxSafe.size(); i++)
+        		rng[i] = cplex.addRange(Double.MAX_VALUE*-1,0, "Safe"+i);
+        	IloNumVarArray var = new IloNumVarArray();
+        	//Hyerplane coefficients
+        	for(int j=0;j<p;j++)
+        	{
+        		 IloColumn column = cplex.column(modelObj, 0);
+        		 int itr = 0;
+        		 for (int MSsafe : MaxSafe)
+        		 {
+        			 int[] x = States.get(MSsafe);
+        			 if(x[j] != 0)
+        				 column = column.and(cplex.column(rng[itr], x[j]));
+        			 itr++;
+        		 }
+ 	             var.add(cplex.numVar(column, 0., 1 ,"a"+j));
+        	}
+        	//Intercept
+        	IloColumn columnB = cplex.column(modelObj, 0);
+        	for (int i = 0; i < MaxSafe.size(); i++)
+        		columnB = columnB.and(cplex.column(rng[i], -1));
+        	var.add(cplex.numVar(columnB, 0., 1 ,"b"));
+        	
+        	for (int MinUnsafe : MinBoundaryUnsafe)
+        	{
+        		int[] x = States.get(MinUnsafe);
+        		boolean covered = false;
+        		for(int i = 0; i < Plans.size(); i++)
+        		{
+        			double total = 0;
+        			for(int j = 0; j < p; j++)
+        				total += x[j] * Plans.get(i).get(j);
+        			total -= Plans.get(i).get(p);
+        			if(total > 0)
+        			{
+        				covered = true;
+        				break;
+        			}
+        		}
+        		if(covered)
+        			continue;
+
+        		IloLinearNumExpr exprNew = cplex.linearNumExpr();
+        		for(int j = 0; j < p; j++)
+	        		if(x[j] != 0)
+	        			exprNew.addTerm(x[j], var._array[j]);
+        		
+        		exprNew.addTerm(-1, var._array[p]);
+            	
+            	IloRange myConstraint = cplex.addGe(exprNew, eps, "UnsafeState");
+            	
+            	if(cplex.solve())
+            	{
+                	Double[] sol = new Double[p + 1];
+                    for (int i = 0; i < p+1; i++)
+                    {
+                    	IloNumVar elem = var.getElement(i);
+                    	sol[i] = cplex.getValue(elem) / eps;
+                    }
+                    List<Double> Plan = new ArrayList<Double>();
+                    for(int i = 0; i < p + 1; i++)
+                    	Plan.add((double) sol[i]);
+                    Plans.add(Plan);
+            	}
+            	cplex.delete(myConstraint);
+            	cplex.clearCuts();
+            	
+        	}
+        	
+        	for (int itr = 0; itr < States.size(); itr++)
+        	{
+        		if(!Safe.get(itr))
+        		{
+	        		int[] x = States.get(itr);
+	        		boolean covered = false;
+	        		for(int i = 0; i < Plans.size(); i++)
+	        		{
+	        			double total = 0;
+	        			for(int j = 0; j < p; j++)
+	        				total += x[j] * Plans.get(i).get(j);
+	        			total -= Plans.get(i).get(p);
+	        			if(total > 0)
+	        			{
+	        				covered = true;
+	        				break;
+	        			}
+	        		}
+	        		if(covered)
+	        			continue;
+	
+	        		IloLinearNumExpr exprNew = cplex.linearNumExpr();
+	        		for(int j = 0; j < p; j++)
+		        		if(x[j] != 0)
+		        			exprNew.addTerm(x[j], var._array[j]);
+	        		
+	        		exprNew.addTerm(-1, var._array[p]);
+	            	
+	            	IloRange myConstraint = cplex.addGe(exprNew, eps, "UnsafeState");
+	            	
+	            	if(cplex.solve())
+	            	{
+	                	Double[] sol = new Double[p + 1];
+	                    for (int i = 0; i < p+1; i++)
+	                    {
+	                    	IloNumVar elem = var.getElement(i);
+	                    	sol[i] = cplex.getValue(elem) / eps;
+	                    }
+	                    List<Double> Plan = new ArrayList<Double>();
+	                    for(int i = 0; i < p + 1; i++)
+	                    	Plan.add((double) sol[i]);
+	                    Plans.add(Plan);
+	            	}
+	            	cplex.delete(myConstraint);
+	            	cplex.clearCuts();
+        		}
+        	}
+            
+            
+            cplex.end();
+           
+        }
+        catch (Exception e)
+        {
+            System.out.println("Concert exception caught: " + e);
+        }
+    	p = p + r;
+    	return Plans;
     }
     
 

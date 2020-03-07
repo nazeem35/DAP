@@ -1,15 +1,27 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
 
-
-
-class Solution
+/**
+ *
+ * @author mayke
+ */
+public class Solution
 {
-    //static Algorithm a = new Algorithm("C:\\Users\\Michael\\Desktop\\Linear DAP\\Unseparable\\");
-    static Algorithm a = new Algorithm("/Users/ahmednazeem/git/DAP/");
+    //static Algorithm a = new Algorithm("C:\\Users\\mayke\\Desktop\\");
+    //static Algorithm a = new Algorithm("/Users/ahmednazeem/git/DAP/");
     
     public static void main(String[] args)
     {
-    	//a.SolvePNMax();
-        if (args[0].equals( "solve"))
+    	long startTime = System.currentTimeMillis();
+    	Algorithm a = new Algorithm("C:\\Users\\mayke\\Desktop\\Unseparable\\");
+    	//a.SolvePN();
+    	a.SolvePN_fast();
+    	long endTime = System.currentTimeMillis();
+    	System.out.println("Stack time = "+(endTime-startTime));
+        /*if (args[0].equals( "solve"))
         {
             a.SolvePN();
         }
@@ -24,10 +36,7 @@ class Solution
         else
         {
             System.out.println("Invalid command, possible commands: solve, solve_max and write_results");
-        }
+        }*/
     }
 }
-
-
-
 
