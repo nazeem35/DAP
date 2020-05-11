@@ -381,7 +381,7 @@ class Algorithm
             RASInfo += "\nNumber of maximal safe states "+ras.MaxSafe.size();
             RASInfo += "\nNumber of minimal unsafe states "+ras.MinBoundaryUnsafe.size();
             RASInfo += "\nDim = "+(ras.p-ras.r);
-            boolean Cont = false;
+            /*boolean Cont = false;
             if(Cont)
             {
             	try
@@ -405,7 +405,7 @@ class Algorithm
             System.out.println("Number of reachable safe states "+ras.safeCount);
             System.out.println("Number of maximal safe states "+ras.MaxSafe.size());
             System.out.println("Number of minimal unsafe states "+ras.MinBoundaryUnsafe.size());
-            
+            */
             /*MaximalPolicies.add(ras);
             WriteMaximalRAS(pn, 0, MaximalPolicies, new Stack<RAS>());
             for(int i = 0; i < ras.States.size(); i++)
