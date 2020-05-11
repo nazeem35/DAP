@@ -18,7 +18,7 @@ public class Solution
     	long startTime = System.currentTimeMillis();
     	Algorithm a = new Algorithm("C:\\Users\\mayke\\Desktop\\Unseparable\\");
     	//a.SolvePN();
-    	a.SolvePN_fast();
+    	a.SolvePN_fast_new();
     	long endTime = System.currentTimeMillis();
     	System.out.println("Stack time = "+(endTime-startTime));
         /*if (args[0].equals( "solve"))

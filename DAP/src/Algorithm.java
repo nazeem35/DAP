@@ -282,12 +282,13 @@ class Algorithm
         //for (int pn = 558; pn <= 558; pn++)
         // 558, 565, 605, 621, 
         //642, 643, 897, 1010, 1026, 1034, 1040
-        int pn = 474;
+        int pn = 445;
         {
            
 
             List<RAS> MaximalPolicies = new ArrayList<RAS>();
             RAS ras = new RAS(path + "PT" + pn);
+            //RAS ras = new RAS(path + "PTSE");
             
             RASInfo = "Number of reachable safe states "+ras.safeCount;
             RASInfo += "\nNumber of maximal safe states "+ras.MaxSafe.size();
@@ -333,13 +334,15 @@ class Algorithm
                 if(numExplored % 10 == 0)
                 {
                 	System.out.println("Number explored "+numExplored+ ", redundant = "+numRedundantMaxSafe+", dominated "+numDominated);
+                	System.out.println("LP1 : " + RAS.lp1cnt + " LP2: " + RAS.lp2cnt);
                 }
                 
                 //if((System.currentTimeMillis() - startTime > 48*3600*1000) && (MaximalPolicies.size() > 0))
-                //if((System.currentTimeMillis() - startTime > 12*3600*1000)&& (MaximalPolicies.size() > 0))
+                //if((System.currentTimeMillis() - startTime > 4*3600*1000))
                 if((MaximalPolicies.size() > 0))
                 {
                     System.out.println("Early exit");
+                	System.out.println("LP1 : " + RAS.lp1cnt + " LP2: " + RAS.lp2cnt);
                     break;
                 }
                                     
@@ -356,7 +359,174 @@ class Algorithm
         }
         System.out.println(linearcount + " out of 100 are linearly separable");
     }
+  
+
+    public void SolvePN_fast_new()
+    {
+        int major = 0; 
+        int minor = 0;
+        Boolean first = true;
+        startTime = System.currentTimeMillis();
+        int linearcount = 0;
+        //for (int pn = 558; pn <= 558; pn++)
+        // 558, 565, 605, 621, 
+        //642, 643, 897, 1010, 1026, 1034, 1040
+        int pn = 643;
+        {
+           
+
+            List<RAS> MaximalPolicies = new ArrayList<RAS>();
+            RAS ras = new RAS(path + "PT" + (pn));
+            RASInfo = "Number of reachable safe states "+ras.safeCount;
+            RASInfo += "\nNumber of maximal safe states "+ras.MaxSafe.size();
+            RASInfo += "\nNumber of minimal unsafe states "+ras.MinBoundaryUnsafe.size();
+            RASInfo += "\nDim = "+(ras.p-ras.r);
+            boolean Cont = false;
+            if(Cont)
+            {
+            	try
+            	{
+            		BufferedReader reader = new BufferedReader(new FileReader(path + "Safe" + pn + ".txt"));
+            		for (int itr = 0; itr < RAS.States.size(); itr++)
+	                {
+						String temp = reader.readLine();
+						if(temp.charAt(0) == '0')
+							ras.Safe.set(itr, false);
+	                }
+        	    	
+        	    	reader.close();
+            	}
+            	catch(Exception e)
+            	{	
+            	}
+            	ras.CalculateMaxSafe();
+            	ras.CalculateSafeCount();
+            }
+            System.out.println("Number of reachable safe states "+ras.safeCount);
+            System.out.println("Number of maximal safe states "+ras.MaxSafe.size());
+            System.out.println("Number of minimal unsafe states "+ras.MinBoundaryUnsafe.size());
+            
+            /*MaximalPolicies.add(ras);
+            WriteMaximalRAS(pn, 0, MaximalPolicies, new Stack<RAS>());
+            for(int i = 0; i < ras.States.size(); i++)
+            {
+            	if((ras.States.get(i)[17] + ras.States.get(i)[18]) == 2)
+            		ras.Safe.set(i, false);
+            }
+            ras.CalculateSafeCount();*/
+            //Explore.add(ras);
+            int numExplored = 0;
+            
+            int numRedundantMaxSafe = 0;
+            int numDominated = 0;
+            //RAS current = new RAS(ras);
+            while (MaximalPolicies.size() == 0)
+            {
+                numExplored++;
+                major++;
+                    if (ras.LinearSpearable())
+                    {
+                        MaximalPolicies = AddRASToPolicies(MaximalPolicies, ras);
+                        //current.printMaxSafe();
+                        System.out.println("A linear policy was found");
+                    }
+                    else
+                    {
+                        List<Integer> CH = ras.ConvexHull_new_3(); 
+                        if(first)
+                        {
+                            first = false;
+                            RASInfo += "\n Number of states to prune at the first step is " + CH.size();
+                        }
+                        
+                    	Object[] temp = ras.MinBoundaryUnsafeUnseparable.toArray();
+                    	int MinState = (int) temp[0];
+                    	for(int i = 1; i < temp.length; i++)
+                    		if(((int) temp[i]) < MinState)
+                    			MinState = (int )temp[i];
+                        
+                    	boolean sep = false;
+                        while(!sep)
+                        {
+                        	sep = true;
+                        	if(temp.length == 0)
+                        		break;
+                            if(CH.size() == 0)
+                            	break;
+                        		//ras = new RAS(ras, CH.get(CH.size() - 1));
+                                //ras.applyPruning();
+                                List<Boolean> ParentSafe = new ArrayList<Boolean>(ras.Safe);
+                        	    ras.reviewSafety(CH.get(CH.size() - 1));
+                            	ras.UpdateMaxSafe(ParentSafe);
+                            	ras.CalculateSafeCount();
+                            	
+                            minor++;
+                            CH.remove(CH.size() - 1);
+                            temp = ras.MinBoundaryUnsafeUnseparable.toArray();
+                        	for(int i = 0; i < temp.length; i++)
+                        		if(((int) temp[i]) == MinState)
+                        			sep = false;
+                        }
+                    }
+                
+                if(numExplored % 10 == 0)
+                {
+                	System.out.println("Number explored "+numExplored+ ", redundant = "+numRedundantMaxSafe+", dominated "+numDominated);
+                	
+                    System.out.println("Total time = "+(System.currentTimeMillis() - startTime)/1000);
+                }
+                
+                /*if(numExplored % 100 == 0)
+                {
+                	System.gc ();
+                	System.runFinalization ();
+                	Runtime.getRuntime().gc(); 
+                	try
+                	{
+            	    	BufferedWriter writer = new BufferedWriter(new OutputStreamWriter
+            	        		(new FileOutputStream(path + "Safe" + pn + ".txt")));
+    					for (int itr = 0; itr < RAS.States.size(); itr++)
+    	                {
+    						if(ras.Safe.get(itr))
+    							writer.write("1\n");
+    						else
+    							writer.write("0\n");
+    	                }
+            	    	
+            	    	writer.close();
+                	}
+                	catch(Exception e)
+                	{	
+                	}
+                }*/
+                
+                //if((System.currentTimeMillis() - startTime > 48*3600*1000) && (MaximalPolicies.size() > 0))
+                //if((System.currentTimeMillis() - startTime > 4*3600*1000))
+                if((MaximalPolicies.size() > 0))
+                {
+                    System.out.println("Early exit");
+                    System.out.println("Major "+major+ ", minor = "+minor);
+                    break;
+                }
+                                    
+            }
+            long duration = System.currentTimeMillis() - startTime;
+            System.out.println("Total time = "+duration/1000);
+            System.out.println("Total Explored = "+numExplored);
+            System.out.println("Redundant Config = "+numRedundantMaxSafe);
+            System.out.println("Dominated by maximal policies = "+numDominated);
+            System.out.println("Number of maximal policies = "+MaximalPolicies.size());
+            WriteMaximalRAS(pn, numExplored, MaximalPolicies, new Stack<RAS>());
+            if (numExplored == 1)
+                linearcount++;
+            
+            System.out.println("Major "+major+ ", minor = "+minor);
+        	
+        }
+        System.out.println(linearcount + " out of 100 are linearly separable");
+    }
     
+   
     
     public void SolvePN()
     {

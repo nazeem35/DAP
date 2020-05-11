@@ -36,6 +36,8 @@ public class RAS implements Comparable<RAS>
     public static int[] m0;
     public static int[][] C;
     public int safeCount;
+    public static int lp1cnt;
+    public static int lp2cnt;
 
     public static List<int []> States = new ArrayList<int []>();
     public List<Boolean> Safe = new ArrayList<Boolean>();
@@ -317,8 +319,9 @@ public class RAS implements Comparable<RAS>
     	//System.out.println("Entered Convex Hull");
     	p = p - r;
     	List<Integer> points = new ArrayList<Integer>();
+    	////List<Integer> points = new ArrayList<Integer>(MaxSafe);
         List<Integer> SafeIDX = new ArrayList<Integer>();
-        int NumberOfVertices = MaxSafe.size()/* + 1*/;
+        int NumberOfVertices = MaxSafe.size();
         //Why do we need zero
         //SafeIDX.add(0);
         for (int i : MaxSafe)
@@ -335,7 +338,7 @@ public class RAS implements Comparable<RAS>
                 vertices[j][i] = x[j];
         }
         long startTime = System.currentTimeMillis();
-      
+      lp1cnt += MaxSafe.size();
         try
         {
         	
@@ -391,11 +394,6 @@ public class RAS implements Comparable<RAS>
 	             		var.getElement(itr1).setUB(0);
 	    		 }
 	        	 cplex.setLinearCoef(modelObj,var.getElement(itr1),1);
-	        	 /*counter++;
-	        	 if(counter%10 == 0)
-	        	 {
-	        		 
-	        	 }*/
 	        		 
 	        	 
 	        }
@@ -466,6 +464,7 @@ public class RAS implements Comparable<RAS>
         		while(change)
                 {	
                 	change = false;
+                	lp2cnt++;
                 	
                     if (cplex.solve())
                     {
@@ -544,8 +543,496 @@ public class RAS implements Comparable<RAS>
         
     }
 
+    // old algorithm - only return list for one min unsafe unseparable
+    public List<Integer> ConvexHull_new()
+    {
+    	//System.out.println("Entered Convex Hull");
+    	p = p - r;
+    	List<Integer> points = new ArrayList<Integer>();
+    	////List<Integer> points = new ArrayList<Integer>(MaxSafe);
+        List<Integer> SafeIDX = new ArrayList<Integer>();
+        int NumberOfVertices = MaxSafe.size();
+        //Why do we need zero
+        //SafeIDX.add(0);
+        for (int i : MaxSafe)
+        {
+        	SafeIDX.add(i);
+        }
+       
+
+        double[][] vertices = new double[p] [NumberOfVertices];
+        for (int i = 0; i < SafeIDX.size(); i++)
+        {
+        	int[] x = States.get(SafeIDX.get(i));
+            for (int j = 0; j < p; j++)
+                vertices[j][i] = x[j];
+        }
+        long startTime = System.currentTimeMillis();
+      lp1cnt += MaxSafe.size();
+        try
+        {
+        	
+        	
+        	IloCplex cplex = new IloCplex();
+        	cplex.setOut(null);
+        	IloObjective modelObj = cplex.addMaximize();
+        	IloRange [] rng = new IloRange[p+1];
+        	for (int j = 0; j < p; j++)
+        		rng[j] = cplex.addRange(0,0, "coverDim"+j);
+        	rng[p] = cplex.addRange(1,1, "convex");
+        	IloNumVarArray var = new IloNumVarArray();
+        	for(int i=0;i<NumberOfVertices;i++)
+        	{
+        		IloColumn column;
+        		column = cplex.column(modelObj, 1);
+        		
+ 	            for ( int j = 0; j < p; j++ )
+ 	               column = column.and(cplex.column(rng[j], vertices[j][i]));
+ 	            column = column.and(cplex.column(rng[p], 1));
+ 	            var.add(cplex.numVar(column, 0., 1 ,"h"+i));
+        	}
+        	//cplex.exportModel("convex"+Integer.toString(itr1)+".lp");
+           
+            
+       
+        	int counter = 0;
+        	
+
+	        for (int MSstate : MaxSafe)
+	        {
+	        	  
+	            // If the maximal state is on the convex hull of the states before pruning
+	            // then, it is on the convex hull of the states after pruning.
+	            if(parentConvexHullStates != null && parentConvexHullStates.contains(MSstate))
+	            {
+	            	points.add(MSstate);
+	            	continue;
+	            }
+	          //The index of the state that we are considering from the set of safe states
+	        	int itr1 = SafeIDX.indexOf(MSstate);
+	        	for (int j = 0; j < p; j++)
+	        		rng[j].setBounds(vertices[j][itr1],vertices[j][itr1]);
+	        	cplex.setLinearCoef(modelObj,var.getElement(itr1),0);
+	        	cplex.setParam(IloCplex.IntParam.RootAlg, IloCplex.Algorithm.Dual);
+	        	 if (cplex.solve())
+	             {
+	             	double objective = cplex.getObjValue();
+	             	double eps = 10e-6;
+	             	if(objective < eps) //On the boundary
+	             		points.add(SafeIDX.get(itr1));
+	             	else //Suppress
+	             		var.getElement(itr1).setUB(0);
+	    		 }
+	        	 cplex.setLinearCoef(modelObj,var.getElement(itr1),1);
+	        		 
+	        	 
+	        }
+	        cplex.end();
+	           
+
+        }
+        catch (Exception e)
+        {
+            System.out.println("Concert exception caught: " + e);
+        }
+        myConvexHullStates.addAll(points);
+        //p = p + r;
+        long endTime = System.currentTimeMillis();
+	    // System.out.println("Convex Hull time = "+(endTime-startTime));
+        //return points;
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Only return the convex hull states that are in the convex hull of the minimal states
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+       
+        HashMap<Integer,Double> pointsReduced = new HashMap<Integer,Double>();
+        
+        double eps = 10e-6;
+    	double MaxObjective = 1000000;
+        
+
+        NumberOfVertices = points.size();
+        vertices = new double[p] [NumberOfVertices];
+        for (int i = 0; i < points.size(); i++)
+        {
+        	int[] x = States.get(points.get(i));
+            for (int j = 0; j < p; j++)
+                vertices[j][i] = x[j];
+        }
+        
+        
+        //for(int MinState : MinBoundaryUnsafeUnseparable)
+        {
+        	Object[] temp = MinBoundaryUnsafeUnseparable.toArray();
+        	int MinState = (int) temp[0];
+        	for(int i = 1; i < temp.length; i++)
+        		if(((int) temp[i]) < MinState)
+        			MinState = (int )temp[i];
+        	try
+            {
+            	IloCplex cplex = new IloCplex();
+            	cplex.setOut(null);
+            	cplex.setParam(IloCplex.DoubleParam.TiLim, 60);
+            	cplex.setWarning(null);
+            	IloObjective modelObj = cplex.addMaximize();
+            	IloRange [] rng = new IloRange[p+1];
+            	
+            	for (int j = 0; j < p; j++)
+            		rng[j] = cplex.addRange(States.get(MinState)[j],Double.MAX_VALUE, "coverDim"+j);
+            	rng[p] = cplex.addRange(0,1, "convex");
+            	IloNumVarArray var = new IloNumVarArray();
+            	for(int i=0;i<NumberOfVertices;i++)
+            	{
+            		IloColumn column = cplex.column(modelObj, 1);
+            		
+     	            for ( int j = 0; j < p; j++ )
+     	               column = column.and(cplex.column(rng[j], vertices[j][i]));
+     	            
+     	            column = column.and(cplex.column(rng[p], 1));
+     	            
+     	            var.add(cplex.numVar(column, 0., 1 ,"h"+i));
+            	}
+
+
+                int currItr = 0;
+            	boolean change = true;
+        		while(change)
+                {	
+                	change = false;
+                	lp2cnt++;
+                	
+                    if (cplex.solve())
+                    {
+                    	double objective = cplex.getObjValue();
+                    	
+                    	if(objective > eps)// the min unsafe is a combination of max unsafe
+                    	{
+                    		change = true;
+
+                        	double[] x = new double[NumberOfVertices];
+                            for (int i = 0; i < NumberOfVertices; i++)
+                            {
+                            	IloNumVar elem = var.getElement(i);
+                            	x[i] = cplex.getValue(elem);
+                            }
+                            
+                            //HashSet<Integer> SafeSubset = new HashSet<Integer>();
+                            //for (int i = 0; i < NumberOfVertices; i++)
+                            //{
+                            //	if(x[i] > 0)
+	                        //	{
+                            //		SafeSubset.add(points.get(i));
+	                        //	}
+                            //}
+                            //HashSet<Integer> NewSubset = RemoveLinearSeparable(points, SafeSubset, MinState);
+
+                            for (int i = 0; i < NumberOfVertices; i++)
+                            {
+                            	if(x[i] > 0)
+	                        	{
+                            		//if(NewSubset.contains(points.get(i)))
+                            		{
+                            			if(pointsReduced.containsKey(points.get(i)))
+                            			{
+                            				double value = Math.max(x[i], pointsReduced.get(points.get(i)));
+                            				pointsReduced.put(points.get(i), value);
+                            			}
+                            			else
+                            			{
+                            				pointsReduced.put(points.get(i), x[i]);
+                            			}
+    	                        		//pointsReduced.add(points.get(i));
+    	
+    	                        		IloLinearNumExpr exprNew = cplex.linearNumExpr();
+    	                            	exprNew.addTerm(1, var._array[i]);
+    	                            	cplex.addLe(exprNew, 0, "IgnoredVar"+currItr);
+    	                            	currItr++;
+                            		}
+	                        	}
+                            }
+                            
+                        	
+                        	cplex.clearCuts();
+                        	//cplex.solve();
+                    	}
+           			}
+                }
+                cplex.end();
+            }
+            catch (Exception e)
+            {
+                System.out.println("Concert exception caught: " + e);
+            }
+        }
+        
+        p = p + r;
+        Map<Integer, Double> sortedPoints = sortByValue(pointsReduced); 
+        
+        List<Integer> result = new ArrayList<Integer>();
+        // add the sorted reduced points to the output 
+        for (Map.Entry<Integer, Double> en : sortedPoints.entrySet()) { 
+            result.add(en.getKey());
+        }
+        
+        return result;
+        
+    }
+
+    // old algorithm - only return list for one min unsafe unseparable 
+    //              && work on max safe instead of extreme points of convex hull 
+    public List<Integer> ConvexHull_new_2()
+    {
+    	//System.out.println("Entered Convex Hull");
+    	p = p - r;
+    	List<Integer> points = new ArrayList<Integer>(MaxSafe);
+        int NumberOfVertices = MaxSafe.size();
+        
+        double[][] vertices = new double[p] [NumberOfVertices];
+           
+        HashMap<Integer,Double> pointsReduced = new HashMap<Integer,Double>();
+        
+        double eps = 10e-6;
+        double M = 1000;
+    	double MaxObjective = 1000000;
+        
+
+        NumberOfVertices = points.size();
+        vertices = new double[p] [NumberOfVertices];
+        for (int i = 0; i < points.size(); i++)
+        {
+        	int[] x = States.get(points.get(i));
+            for (int j = 0; j < p; j++)
+                vertices[j][i] = x[j];
+        }
+        
+        
+        {
+        	Object[] temp = MinBoundaryUnsafeUnseparable.toArray();
+        	int MinState = (int) temp[0];
+        	for(int i = 1; i < temp.length; i++)
+        		if(((int) temp[i]) < MinState)
+        			MinState = (int )temp[i];
+        	try
+            {
+            	IloCplex cplex = new IloCplex();
+            	cplex.setOut(null);
+            	cplex.setParam(IloCplex.DoubleParam.TiLim, 60);
+            	cplex.setWarning(null);
+            	IloObjective modelObj = cplex.addMaximize();
+            	IloRange [] rng = new IloRange[p+1];
+            	
+            	for (int j = 0; j < p; j++)
+            		rng[j] = cplex.addRange(States.get(MinState)[j],Double.MAX_VALUE, "coverDim"+j);
+            	rng[p] = cplex.addRange(0,1, "convex");
+            	IloNumVarArray var = new IloNumVarArray();
+            	for(int i=0;i<NumberOfVertices;i++)
+            	{
+            		IloColumn column = cplex.column(modelObj, 1);
+            		
+     	            for ( int j = 0; j < p; j++ )
+     	               column = column.and(cplex.column(rng[j], vertices[j][i]));
+     	            
+     	            column = column.and(cplex.column(rng[p], 1));
+     	            
+     	            var.add(cplex.numVar(column, 0., 1 ,"h"+i));
+            	}
+
+
+                int currItr = 0;
+            	boolean change = true;
+        		while(change)
+                {	
+                	change = false;
+                	lp2cnt++;
+                	
+                    if (cplex.solve())
+                    {
+                    	double objective = cplex.getObjValue();
+                    	
+                    	if(objective > eps)// the min unsafe is a combination of max unsafe
+                    	{
+                    		change = true;
+
+                        	double[] x = new double[NumberOfVertices];
+                            for (int i = 0; i < NumberOfVertices; i++)
+                            {
+                            	IloNumVar elem = var.getElement(i);
+                            	x[i] = cplex.getValue(elem);
+                            }
+                            
+                            for (int i = 0; i < NumberOfVertices; i++)
+                            {
+                            	if(x[i] > 0)
+	                        	{
+                            		{
+                            			if(pointsReduced.containsKey(points.get(i)))
+                            			{
+                            				double value = Math.max(x[i], pointsReduced.get(points.get(i)));
+                            				pointsReduced.put(points.get(i), value);
+                            			}
+                            			else
+                            			{
+                            				pointsReduced.put(points.get(i), x[i]);
+                            			}
+    	                        		//pointsReduced.add(points.get(i));
+    	
+    	                        		IloLinearNumExpr exprNew = cplex.linearNumExpr();
+    	                            	exprNew.addTerm(1, var._array[i]);
+    	                            	cplex.addLe(exprNew, 0, "IgnoredVar"+currItr);
+    	                            	currItr++;
+                            		}
+	                        	}
+                            }
+                            
+                        	
+                        	cplex.clearCuts();
+                    	}
+           			}
+                }
+                cplex.end();
+            }
+            catch (Exception e)
+            {
+                System.out.println("Concert exception caught: " + e);
+            }
+        }
+        
+        p = p + r;
+        Map<Integer, Double> sortedPoints = sortByValue(pointsReduced); 
+        
+        List<Integer> result = new ArrayList<Integer>();
+        // add the sorted reduced points to the output 
+        for (Map.Entry<Integer, Double> en : sortedPoints.entrySet()) { 
+            result.add(en.getKey());
+        }
+        
+        return result;
+        
+    }
+
+    // Ahmed MIP - using Is as real variable not integer
+    public List<Integer> ConvexHull_new_3()
+    {
+    	//System.out.println("Entered Convex Hull");
+    	p = p - r;
+
+    	List<Integer> points = new ArrayList<Integer>(MaxSafe);
+        HashMap<Integer,Double> pointsReduced = new HashMap<Integer,Double>();
+        double eps = 10e-6;
+        double M = 1000;
+        
+    	try
+        {
+            IloCplex cplex = new IloCplex();
+            cplex.setParam(IloCplex.IntParam.AdvInd, 0);
+            
+            cplex.setOut(null);
+            IloObjective modelObj = cplex.addMaximize();
+        	IloRange [] rng =  new IloRange[MaxSafe.size()];
+
+        	for (int i = 0; i < MaxSafe.size(); i++)
+        		rng[i] = cplex.addRange(Double.MAX_VALUE*-1,0, "Safe"+i);
+        	IloNumVarArray var = new IloNumVarArray();
+        	//Hyerplane coefficients
+        	for(int j=0;j<p;j++)
+        	{
+        		 IloColumn column = cplex.column(modelObj, 0);
+        		 int itr = 0;
+        		 for (int i = 0; i < points.size(); i++)
+        		 {
+        			 int MSsafe = points.get(i);
+        			 int[] x = States.get(MSsafe);
+        			 if(x[j] != 0)
+        				 column = column.and(cplex.column(rng[itr], x[j]));
+        			 itr++;
+        		 }
+ 	             var.add(cplex.numVar(column, 0., 1 ,"a"+j));
+        	}
+        	//Intercept
+        	IloColumn columnB = cplex.column(modelObj, 0);
+        	for (int i = 0; i < MaxSafe.size(); i++)
+        		columnB = columnB.and(cplex.column(rng[i], -1));
+        	var.add(cplex.numVar(columnB, 0., 1 ,"b"));
+        	// Is variables
+        	for(int j=0;j<points.size();j++)
+        	{
+        		 IloColumn column = cplex.column(modelObj, -1);
+				 column = column.and(cplex.column(rng[j], -M));
+ 	             var.add(cplex.numVar(column, 0., 1 ,"a"+j));
+        	}
+        	
+        	
+        	
+        	Object[] temp = MinBoundaryUnsafeUnseparable.toArray();
+            int MinUnsafe = (int) temp[0];
+            for(int i = 1; i < temp.length; i++)
+            	if(((int) temp[i]) < MinUnsafe)
+            		MinUnsafe = (int )temp[i];
+            	
+        	IloLinearNumExpr exprNew = cplex.linearNumExpr();
+
+        	int[] MinUnsafeUn = States.get(MinUnsafe);
+        	//int[] x = States.get(MinUnsafe);
+        	for(int j = 0; j < p; j++)
+	        	if(MinUnsafeUn[j] != 0)
+	        		exprNew.addTerm(MinUnsafeUn[j], var._array[j]);
+        		
+        	exprNew.addTerm(-1, var._array[p]);
+            	
+            IloRange myConstraint = cplex.addGe(exprNew, eps, "UnsafeState");
+            if(cplex.solve())
+            {
+            	int abc = 0;
+
+               	double[] x = new double[p+MaxSafe.size()+1];
+                for (int i = 0; i < p+MaxSafe.size()+1; i++)
+                {
+                        	IloNumVar elem = var.getElement(i);
+                        	x[i] = cplex.getValue(elem);
+                }
+                        
+                for (int i = 0; i < points.size(); i++)
+                {
+                        	if(x[p+1+i] > 0)
+                        	{
+                        		double dist = 0;
+                        		int[] MaxS = States.get(points.get(i));
+                        		for(int j = 0; j < p; j++)
+                        			dist += -(MaxS[j] - MinUnsafeUn[j])*(MaxS[j] - MinUnsafeUn[j]);
+                        		pointsReduced.put(points.get(i), x[i]);
+                        	}
+                } 
+            }
+            else
+            {
+                   System.out.println("Problem in the MIP");
+            }
+        	
+            cplex.end();
+           
+        }
+        catch (Exception e)
+        {
+            System.out.println("Concert exception caught: " + e);
+        }
+    	
+        p = p + r;
+        Map<Integer, Double> sortedPoints = sortByValue(pointsReduced); 
+        
+        List<Integer> result = new ArrayList<Integer>();
+        // add the sorted reduced points to the output 
+        for (Map.Entry<Integer, Double> en : sortedPoints.entrySet()) { 
+            result.add(en.getKey());
+        }
+        
+        return result;
+        
+    }
+
+    
     public void ReadPN(String file)
     {
+    	lp1cnt = 0;
+    	lp2cnt = 0;
         try
     	{
 	    	BufferedReader reader = new BufferedReader(new FileReader(file));
@@ -865,6 +1352,84 @@ public class RAS implements Comparable<RAS>
         	 if(Safe.get(i))
         	 {
         		 if(parent.MaxSafe.contains(i))
+        			 MaxSafe.add(i);
+        		 else //Previously non-maximal
+        		 {
+        			 HashSet<Integer> dominatingSet = dominatedBy.get(i);
+        			 boolean isMax = true;
+        			 for(int j: dominatingSet)
+        			 {
+        				 if(Safe.get(j))
+        				 {
+        					 isMax = false;
+        					 break;
+        				 }
+        			 }
+        			 if(isMax)
+        				 MaxSafe.add(i);
+        		 }
+        	 }
+         }
+         long endTime = System.currentTimeMillis();
+         //System.out.println("RAS from parent time  =  "+(endTime-startTime));
+         //System.out.println("Max Safe = "+MaxSafe.size()+" , Min unsafe = "+MinBoundaryUnsafe.size());
+         return;
+    }
+
+    public void UpdateMaxSafe(List<Boolean> ParentSafe)
+    {
+    	long startTime = System.currentTimeMillis();
+    	//Init boundary unsafe
+    	//MinBoundaryUnsafe = new HashSet<Integer>(parent.MinBoundaryUnsafe);
+    	HashSet<Integer> ParentMaxSafe = new HashSet<Integer>(MaxSafe);
+    	MaxSafe.clear();
+    	HashSet<Integer> nonMinimalBoundaryUnsafe = new HashSet<Integer>();
+    	for(int i:MinBoundaryUnsafe)
+    	{
+    		Boolean isBoundary = false;
+    		for(int j : PreviousStates.get(i))
+    		{
+    			if(Safe.get(j))
+    			{
+    				isBoundary = true;
+    				break;
+    			}
+    		}
+    		if (!isBoundary)
+    			nonMinimalBoundaryUnsafe.add(i);
+    	}
+    	//Add new unsafe as candidates
+    	 for(int i = 0; i < States.size(); i++)
+    	 {
+         	if(ParentSafe.get(i) && !Safe.get(i))
+         	{
+	         	for(int j : PreviousStates.get(i))
+	         	{
+	         		if(Safe.get(j))
+	         		{
+	         			MinBoundaryUnsafe.add(i);
+	         			break;
+	         		}
+	         	}
+         	}
+         	
+         }
+    	 //Extract the min ones
+    	 int [] tokens2 = new int[p-r];
+    	 
+    	 for(int i:MinBoundaryUnsafe)
+         {
+    		 populateMaxMin(i,tokens2,1,nonMinimalBoundaryUnsafe);
+         	
+         }
+         MinBoundaryUnsafe.removeAll(nonMinimalBoundaryUnsafe);
+         
+         //Review the maximal safe states
+         for(int i = 0; i < States.size(); i++)
+         {
+        	 if(Safe.get(i))
+        	 {
+        		 if(ParentMaxSafe.contains(i))
         			 MaxSafe.add(i);
         		 else //Previously non-maximal
         		 {
