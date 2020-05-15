@@ -365,70 +365,41 @@ class Algorithm
     {
         int major = 0; 
         int minor = 0;
+        double MaxSafeCount = 0;
+        int CurrentSafeCount = 0;
         Boolean first = true;
         startTime = System.currentTimeMillis();
         int linearcount = 0;
         //for (int pn = 558; pn <= 558; pn++)
         // 558, 565, 605, 621, 
         //642, 643, 897, 1010, 1026, 1034, 1040
-        int pn = 643;
-        {
-           
+        int pn = 1040;
+        {  
 
             List<RAS> MaximalPolicies = new ArrayList<RAS>();
             RAS ras = new RAS(path + "PT" + (pn));
+            MaxSafeCount = ras.safeCount;
             RASInfo = "Number of reachable safe states "+ras.safeCount;
             RASInfo += "\nNumber of maximal safe states "+ras.MaxSafe.size();
             RASInfo += "\nNumber of minimal unsafe states "+ras.MinBoundaryUnsafe.size();
             RASInfo += "\nDim = "+(ras.p-ras.r);
-            /*boolean Cont = false;
-            if(Cont)
-            {
-            	try
-            	{
-            		BufferedReader reader = new BufferedReader(new FileReader(path + "Safe" + pn + ".txt"));
-            		for (int itr = 0; itr < RAS.States.size(); itr++)
-	                {
-						String temp = reader.readLine();
-						if(temp.charAt(0) == '0')
-							ras.Safe.set(itr, false);
-	                }
-        	    	
-        	    	reader.close();
-            	}
-            	catch(Exception e)
-            	{	
-            	}
-            	ras.CalculateMaxSafe();
-            	ras.CalculateSafeCount();
-            }
-            System.out.println("Number of reachable safe states "+ras.safeCount);
-            System.out.println("Number of maximal safe states "+ras.MaxSafe.size());
-            System.out.println("Number of minimal unsafe states "+ras.MinBoundaryUnsafe.size());
-            */
-            /*MaximalPolicies.add(ras);
-            WriteMaximalRAS(pn, 0, MaximalPolicies, new Stack<RAS>());
-            for(int i = 0; i < ras.States.size(); i++)
-            {
-            	if((ras.States.get(i)[17] + ras.States.get(i)[18]) == 2)
-            		ras.Safe.set(i, false);
-            }
-            ras.CalculateSafeCount();*/
             //Explore.add(ras);
             int numExplored = 0;
             
             int numRedundantMaxSafe = 0;
             int numDominated = 0;
             //RAS current = new RAS(ras);
-            while (MaximalPolicies.size() == 0)
+            while (true)
             {
                 numExplored++;
                 major++;
                     if (ras.LinearSpearable())
                     {
                         MaximalPolicies = AddRASToPolicies(MaximalPolicies, ras);
+                        CurrentSafeCount = ras.safeCount;
                         //current.printMaxSafe();
                         System.out.println("A linear policy was found");
+                        break;
                     }
                     else
                     {
@@ -460,12 +431,10 @@ class Algorithm
                             	ras.UpdateMaxSafe(ParentSafe);
                             	ras.CalculateSafeCount();
                             	
+                            	//ras.LinearSpearable();
+                            sep = ras.LinearSpearable(MinState);
                             minor++;
                             CH.remove(CH.size() - 1);
-                            temp = ras.MinBoundaryUnsafeUnseparable.toArray();
-                        	for(int i = 0; i < temp.length; i++)
-                        		if(((int) temp[i]) == MinState)
-                        			sep = false;
                         }
                     }
                 
@@ -475,30 +444,6 @@ class Algorithm
                 	
                     System.out.println("Total time = "+(System.currentTimeMillis() - startTime)/1000);
                 }
-                
-                /*if(numExplored % 100 == 0)
-                {
-                	System.gc ();
-                	System.runFinalization ();
-                	Runtime.getRuntime().gc(); 
-                	try
-                	{
-            	    	BufferedWriter writer = new BufferedWriter(new OutputStreamWriter
-            	        		(new FileOutputStream(path + "Safe" + pn + ".txt")));
-    					for (int itr = 0; itr < RAS.States.size(); itr++)
-    	                {
-    						if(ras.Safe.get(itr))
-    							writer.write("1\n");
-    						else
-    							writer.write("0\n");
-    	                }
-            	    	
-            	    	writer.close();
-                	}
-                	catch(Exception e)
-                	{	
-                	}
-                }*/
                 
                 //if((System.currentTimeMillis() - startTime > 48*3600*1000) && (MaximalPolicies.size() > 0))
                 //if((System.currentTimeMillis() - startTime > 4*3600*1000))
@@ -524,6 +469,7 @@ class Algorithm
         	
         }
         System.out.println(linearcount + " out of 100 are linearly separable");
+        System.out.println("&"+((System.currentTimeMillis() - startTime)/1000.0)+"&"+CurrentSafeCount+"&"+(CurrentSafeCount/MaxSafeCount));
     }
     
    

@@ -50,7 +50,6 @@ public class RAS implements Comparable<RAS>
     public static List<HashSet<Integer>> NextStates = new ArrayList<HashSet<Integer>>();
     public static List<HashSet<Integer>> PreviousStates = new ArrayList<HashSet<Integer>>();
     public static Map<String, Integer> StateDict = new HashMap<String, Integer>();
-    public static List<List<Integer>> ConflictStages = new ArrayList<List<Integer>>();
     static HashSet<Integer> nonBoundayUnsafe = new HashSet<Integer>();
     static HashMap<Integer,HashSet<Integer>> dominatedBy = new HashMap<Integer,HashSet<Integer>>();
     int prunedState;
@@ -281,6 +280,7 @@ public class RAS implements Comparable<RAS>
             
             
             cplex.end();
+            cplex = null;
            
         }
         catch (Exception e)
@@ -398,6 +398,7 @@ public class RAS implements Comparable<RAS>
 	        	 
 	        }
 	        cplex.end();
+	        cplex = null;
 	           
 
         }
@@ -523,6 +524,7 @@ public class RAS implements Comparable<RAS>
            			}
                 }
                 cplex.end();
+                cplex = null;
             }
             catch (Exception e)
             {
@@ -628,7 +630,7 @@ public class RAS implements Comparable<RAS>
 	        	 
 	        }
 	        cplex.end();
-	           
+	        cplex = null;
 
         }
         catch (Exception e)
@@ -757,6 +759,7 @@ public class RAS implements Comparable<RAS>
            			}
                 }
                 cplex.end();
+                cplex = null;
             }
             catch (Exception e)
             {
@@ -889,6 +892,7 @@ public class RAS implements Comparable<RAS>
            			}
                 }
                 cplex.end();
+                cplex = null;
             }
             catch (Exception e)
             {
@@ -998,7 +1002,7 @@ public class RAS implements Comparable<RAS>
                         		int[] MaxS = States.get(points.get(i));
                         		for(int j = 0; j < p; j++)
                         			dist += -(MaxS[j] - MinUnsafeUn[j])*(MaxS[j] - MinUnsafeUn[j]);
-                        		pointsReduced.put(points.get(i), x[i]);
+                        		pointsReduced.put(points.get(i), dist);
                         	}
                 } 
             }
@@ -1008,7 +1012,7 @@ public class RAS implements Comparable<RAS>
             }
         	
             cplex.end();
-           
+            cplex = null;
         }
         catch (Exception e)
         {
@@ -1049,19 +1053,6 @@ public class RAS implements Comparable<RAS>
 	            String[] tokens = reader.readLine().split("\t");
 	            for (int j = 0; j < t; j++)
 	                C[i][ j] = Integer.parseInt(tokens[j]);
-	        }
-	        // This is for the conflict processing stages
-	        if (reader.readLine() .equals( "Conflict"))
-	        {
-	            String line = "";
-	            while ((line = reader.readLine()) != null)
-	            {
-	                String[] tokens = line.split(",");
-	                List<Integer> temp = new ArrayList<Integer>();
-	                for (int j = 0; j < tokens.length; j++)
-	                    temp.add(Integer.parseInt(tokens[j]));
-	                ConflictStages.add(temp);
-	            }
 	        }
 	        reader.close();
     	}
@@ -1813,7 +1804,7 @@ public class RAS implements Comparable<RAS>
             
             
             cplex.end();
-           
+            cplex = null;
         }
         catch (Exception e)
         {
@@ -1889,6 +1880,7 @@ public class RAS implements Comparable<RAS>
             
             
             cplex.end();
+            cplex = null;
            
         }
         catch (Exception e)
@@ -1900,6 +1892,82 @@ public class RAS implements Comparable<RAS>
     		return true;
     	
     	return false;
+    }
+
+    public boolean LinearSpearable(int MinUnsafe)
+    {
+    	boolean sep = true;
+    	p = p - r;
+        double eps = 0.0001;
+    	try
+        {
+            IloCplex cplex = new IloCplex();
+            cplex.setParam(IloCplex.IntParam.AdvInd, 0);
+            
+            cplex.setOut(null);
+            IloObjective modelObj = cplex.addMaximize();
+        	IloRange [] rng =  new IloRange[MaxSafe.size()];
+
+        	for (int i = 0; i < MaxSafe.size(); i++)
+        		rng[i] = cplex.addRange(Double.MAX_VALUE*-1,0, "Safe"+i);
+        	IloNumVarArray var = new IloNumVarArray();
+        	//Hyerplane coefficients
+        	for(int j=0;j<p;j++)
+        	{
+        		 IloColumn column = cplex.column(modelObj, 0);
+        		 int itr = 0;
+        		 for (int MSsafe : MaxSafe)
+        		 {
+        			 int[] x = States.get(MSsafe);
+        			 if(x[j] != 0)
+        				 column = column.and(cplex.column(rng[itr], x[j]));
+        			 itr++;
+        		 }
+ 	             var.add(cplex.numVar(column, 0., 1 ,"a"+j));
+        	}
+        	//Intercept
+        	IloColumn columnB = cplex.column(modelObj, 0);
+        	for (int i = 0; i < MaxSafe.size(); i++)
+        		columnB = columnB.and(cplex.column(rng[i], -1));
+        	var.add(cplex.numVar(columnB, 0., 1 ,"b"));
+        	
+        	
+        	{
+        		IloLinearNumExpr exprNew = cplex.linearNumExpr();
+        		
+        		int[] x = States.get(MinUnsafe);
+        		for(int j = 0; j < p; j++)
+	        		if(x[j] != 0)
+	        			exprNew.addTerm(x[j], var._array[j]);
+        		
+        		exprNew.addTerm(-1, var._array[p]);
+            	
+            	IloRange myConstraint = cplex.addGe(exprNew, eps, "UnsafeState");
+            	if(cplex.solve())
+            	{
+            		sep = true;
+            	}
+            	else
+            	{
+            		sep = false;
+            	}
+            	cplex.delete(myConstraint);
+            	cplex.clearCuts();
+            	
+        	}
+            
+            
+            cplex.end();
+            cplex = null;
+           
+        }
+        catch (Exception e)
+        {
+            System.out.println("Concert exception caught: " + e);
+        }
+    	p = p + r;
+
+    	return sep;
     }
 
     /// <summary>
@@ -2010,6 +2078,7 @@ public class RAS implements Comparable<RAS>
                 if(TotalSeparated == MinBoundaryUnsafe.size())
                 {
                     cplex.end();
+                    cplex = null;
                     p = p + r;
                     return true;
                 }
@@ -2017,6 +2086,7 @@ public class RAS implements Comparable<RAS>
                 numIter++;
             }
             cplex.end();
+            cplex = null;
            
         }
         catch (Exception e)
@@ -2045,8 +2115,38 @@ public class RAS implements Comparable<RAS>
         System.out.println("Number of maximal safe states "+MaxSafe.size());
         System.out.println("Number of minimal unsafe states "+MinBoundaryUnsafe.size());
         System.out.println("Dim = "+(p-r));
+        
+        ReduceMemory_NonBoundaryUnsafe();
         return;
         //printStates();
+    }
+    // This function reduces memory usage by eliminating unnecessary data from Non-Boundary unsafe states
+    void ReduceMemory_NonBoundaryUnsafe()
+    {
+    	for(int i = 0; i < States.size();i++)
+    	{
+    		if(!Safe.get(i))
+    		{
+    			boolean allunsafe = true;
+    			for(int j: PreviousStates.get(i))
+    			{
+    				if(Safe.get(j))
+    				{
+    					allunsafe = false;
+    					break;
+    				}
+    			}
+    			//This is an unsafe non-boundary state
+    			if(allunsafe)
+    			{
+    				PreviousStates.get(i).clear();
+    				NextStates.get(i).clear();
+    				if(!StateDict.remove(join(",", States.get(i),p-r), i))
+    			    	System.out.println("Problem");
+    					
+    			}
+    		}
+    	}
     }
     void printStates()
     {
