@@ -373,7 +373,7 @@ class Algorithm
         //for (int pn = 558; pn <= 558; pn++)
         // 558, 565, 605, 621, 
         //642, 643, 897, 1010, 1026, 1034, 1040
-        int pn = 1040;
+        int pn = 642;
         {  
 
             List<RAS> MaximalPolicies = new ArrayList<RAS>();
@@ -383,12 +383,10 @@ class Algorithm
             RASInfo += "\nNumber of maximal safe states "+ras.MaxSafe.size();
             RASInfo += "\nNumber of minimal unsafe states "+ras.MinBoundaryUnsafe.size();
             RASInfo += "\nDim = "+(ras.p-ras.r);
-            //Explore.add(ras);
             int numExplored = 0;
             
             int numRedundantMaxSafe = 0;
             int numDominated = 0;
-            //RAS current = new RAS(ras);
             while (true)
             {
                 numExplored++;
@@ -397,16 +395,16 @@ class Algorithm
                     {
                         MaximalPolicies = AddRASToPolicies(MaximalPolicies, ras);
                         CurrentSafeCount = ras.safeCount;
-                        //current.printMaxSafe();
                         System.out.println("A linear policy was found");
                         break;
                     }
                     else
                     {
-                        List<Integer> CH = ras.ConvexHull_new_3(); 
+                        List<Integer> CH = ras.ConvexHull_new_3_1(); 
                         if(first)
                         {
                             first = false;
+                            System.out.println("First LP created");
                             RASInfo += "\n Number of states to prune at the first step is " + CH.size();
                         }
                         
