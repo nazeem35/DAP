@@ -373,7 +373,7 @@ class Algorithm
         //for (int pn = 558; pn <= 558; pn++)
         // 558, 565, 605, 621, 
         //642, 643, 897, 1010, 1026, 1034, 1040
-        int pn = 642;
+        int pn = 1034;
         {  
 
             List<RAS> MaximalPolicies = new ArrayList<RAS>();
@@ -400,7 +400,8 @@ class Algorithm
                     }
                     else
                     {
-                        List<Integer> CH = ras.ConvexHull_new_3_1(); 
+                        List<Integer> CH = ras.ConvexHull_new_3_1();
+                        		//ras.ConvexHull_new_3(); 
                         if(first)
                         {
                             first = false;
@@ -481,7 +482,7 @@ class Algorithm
         //for (int pn = 558; pn <= 558; pn++)
         // 558, 565, 605, 621, 
         //642, 643, 897, 1010, 1026, 1034, 1040
-        int pn = 474;
+        int pn = 1034;
         {
            
 

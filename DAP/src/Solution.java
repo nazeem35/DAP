@@ -16,7 +16,8 @@ public class Solution
     public static void main(String[] args)
     {
     	long startTime = System.currentTimeMillis();
-    	Algorithm a = new Algorithm("C:\\Users\\mayke\\Desktop\\Unseparable\\");
+    	//Algorithm a = new Algorithm("C:\\Users\\mayke\\Desktop\\Unseparable\\");
+    	Algorithm a = new Algorithm("/Users/ahmednazeem/git/DAP/");
     	//a.SolvePN();
     	a.SolvePN_fast_new();
     	long endTime = System.currentTimeMillis();
