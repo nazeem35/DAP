@@ -373,7 +373,7 @@ class Algorithm
         //for (int pn = 558; pn <= 558; pn++)
         // 558, 565, 605, 621, 
         //642, 643, 897, 1010, 1026, 1034, 1040
-        int pn = 1034;
+        int pn = 474;
         {  
 
             List<RAS> MaximalPolicies = new ArrayList<RAS>();

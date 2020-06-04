@@ -68,6 +68,7 @@ public class RAS implements Comparable<RAS> {
 	int[] unsafe_row_idx;
 	int[] unsafe_col_idx ;
 	double[] unsafe_val ;
+	String[] joinHelper;
 
 	@Override
 	public String toString() {
@@ -1075,12 +1076,15 @@ public class RAS implements Comparable<RAS> {
 	}
 
 	String join(String sep, int[] arr, int arrLen) {
-		String res = "";
-		for (int i = 0; i < arrLen - 1; i++) {
-			res += arr[i] + sep;
-		}
-		res += arr[arrLen - 1];
-		return res;
+		joinHelper[0] = arr[0]+sep;
+		for(int i=1;i< arrLen - 1; i++)
+			joinHelper[i] = joinHelper[i-1]+arr[i]+sep;
+		
+		joinHelper[ arrLen - 1] = joinHelper[ arrLen - 2]+arr[arrLen - 1];
+		return joinHelper[ arrLen - 1];
+			
+		
+		
 	}
 
 	/// <summary>
@@ -2120,8 +2124,9 @@ public class RAS implements Comparable<RAS> {
 	}
 		
 	public RAS(String pn) {
-		ReadPN(pn);
 		
+		ReadPN(pn);
+		joinHelper = new String[2*p];
 		//
 		CalculateReachableStates();
 		CalculateReachableSafeStates();
