@@ -1152,11 +1152,12 @@ public class RAS implements Comparable<RAS> {
 					}
 				}
 				if (reachable) {
-					if (!StateDict.containsKey(join(',', m, p - r))) {
-						StateDict.put(join(',', m, p - r), States.size());
+					String key = join(',', m, p - r);
+					if (!StateDict.containsKey(key)) {
+						StateDict.put(key, States.size());
 						States.add(m);
 					}
-					next.add(StateDict.get(join(',', m, p - r)));
+					next.add(StateDict.get(key));
 					m = new int[p];
 				}
 			}
