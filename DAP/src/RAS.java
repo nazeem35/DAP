@@ -1091,12 +1091,12 @@ public class RAS implements Comparable<RAS> {
 		int currentState = 0;
 		StateDict.put(join(",", m0, p - r), 0);
 		States.add(m0);
-
+		int[] s = new int[p];
 		while (currentState < States.size()) {
 			// 0- Initialize the next states
 			HashSet<Integer> next = new HashSet<Integer>();
 			// 1- Get the state that you want to explore
-			int[] s = new int[p];
+			
 			for (int i = 0; i < p; i++)
 				s[i] = States.get(currentState)[i];
 
@@ -1166,11 +1166,7 @@ public class RAS implements Comparable<RAS> {
 		System.out.println("Total = " + States.size() + ", Number of safe " + l_numSafe + " , number of unsafe = "
 				+ (States.size() - l_numSafe));
 
-		for (int i = 0; i < States.size(); i++) {
-			if (!Safe.get(i)) {
-				// System.out.println(join(",", States.get(i), p-r));
-			}
-		}
+		
 
 		return;
 	}
