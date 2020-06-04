@@ -1132,6 +1132,7 @@ public class RAS implements Comparable<RAS> {
 		StateDict.put(join(',', m0, p - r), 0);
 		States.add(m0);
 		int[] s = new int[p];
+		int[] m = new int[p];
 		while (currentState < States.size()) {
 			// 0- Initialize the next states
 			HashSet<Integer> next = new HashSet<Integer>();
@@ -1142,12 +1143,13 @@ public class RAS implements Comparable<RAS> {
 
 			for (int j = 0; j < t; j++) {
 				boolean reachable = true;
-				int[] m = new int[p];
 				for (int i = 0; i < p; i++) {
 					m[i] = s[i];
 					m[i] += C[i][j];
 					if (m[i] < 0)
+					{
 						reachable = false;
+					}
 				}
 				if (reachable) {
 					if (!StateDict.containsKey(join(',', m, p - r))) {
@@ -1155,6 +1157,7 @@ public class RAS implements Comparable<RAS> {
 						States.add(m);
 					}
 					next.add(StateDict.get(join(',', m, p - r)));
+					m = new int[p];
 				}
 			}
 
