@@ -27,6 +27,8 @@ import java.util.Stack;
 import ilog.concert.*;
 //import ilog.concert.IloCopyManager.Check;
 import ilog.cplex.*;
+import java.lang.Math; 
+
 
 public class RAS implements Comparable<RAS> {
 	public static double eps = 0.0001;
@@ -68,7 +70,10 @@ public class RAS implements Comparable<RAS> {
 	int[] unsafe_row_idx;
 	int[] unsafe_col_idx ;
 	double[] unsafe_val ;
-	String[] joinHelper;
+	char[] joinHelper;
+	char [][]joinIntHelper;
+	int joinHelper_size;
+	int joinIntHelper_size;
 
 	@Override
 	public String toString() {
@@ -1075,14 +1080,45 @@ public class RAS implements Comparable<RAS> {
 		}
 	}
 
-	String join(String sep, int[] arr, int arrLen) {
-		joinHelper[0] = arr[0]+sep;
-		for(int i=1;i< arrLen - 1; i++)
-			joinHelper[i] = joinHelper[i-1]+arr[i]+sep;
+	int convert_int_to_str(int val,char [] ret)
+	{
+		if (val ==0)
+		{
+			ret[0] = '0';
+			return 1;
+		}
+		int numOfDigits = (int)Math.log10(val) + 1;
+		for(int i=0;i< numOfDigits; i++, val/=10)
+		{
+			int tmp = val % 10;
+			ret[numOfDigits-1-i] = (char)(tmp + '0');
+		}
+		//System.out.println("ret = "+ret);
+		//System.out.println("val = "+val);
+		//System.out.println("numOfDigits = "+numOfDigits);
+		return numOfDigits;
+	}
+	String join(char sep, int[] arr, int arrLen) {
+		//Reset
+		for(int i=0;i< joinHelper_size;i++)
+			joinHelper[i] = 0;
+		for(int i=0;i<p;i++)
+			for(int j=0;j<joinIntHelper_size;j++)
+				joinIntHelper[i][j] = 0;
+		int lastIdx = 0;
+		for(int i=0;i< arrLen; i++)
+		{
+			int len = convert_int_to_str(arr[i],joinIntHelper[i]);
+			for(int k=0;k<len;k++)
+				joinHelper[lastIdx+k] = joinIntHelper[i][k];
+			lastIdx += len;
+			//System.out.println("lastIdx = "+lastIdx);
+			if (i < arrLen-1)
+				joinHelper[lastIdx++] = sep;
+		}
 		
-		joinHelper[ arrLen - 1] = joinHelper[ arrLen - 2]+arr[arrLen - 1];
-		return joinHelper[ arrLen - 1];
-			
+		return new String(joinHelper);
+		
 		
 		
 	}
@@ -1093,7 +1129,7 @@ public class RAS implements Comparable<RAS> {
 	/// </summary>
 	public void CalculateReachableStates() {
 		int currentState = 0;
-		StateDict.put(join(",", m0, p - r), 0);
+		StateDict.put(join(',', m0, p - r), 0);
 		States.add(m0);
 		int[] s = new int[p];
 		while (currentState < States.size()) {
@@ -1114,11 +1150,11 @@ public class RAS implements Comparable<RAS> {
 						reachable = false;
 				}
 				if (reachable) {
-					if (!StateDict.containsKey(join(",", m, p - r))) {
-						StateDict.put(join(",", m, p - r), States.size());
+					if (!StateDict.containsKey(join(',', m, p - r))) {
+						StateDict.put(join(',', m, p - r), States.size());
 						States.add(m);
 					}
-					next.add(StateDict.get(join(",", m, p - r)));
+					next.add(StateDict.get(join(',', m, p - r)));
 				}
 			}
 
@@ -1187,7 +1223,7 @@ public class RAS implements Comparable<RAS> {
 				tokens2[k]--;
 			else
 				tokens2[k]++;
-			String tokens2Str = this.join(",", tokens2, p - r);
+			String tokens2Str = this.join(',', tokens2, p - r);
 
 			if (StateDict.containsKey(tokens2Str)) {
 				int searchStateIdx = StateDict.get(tokens2Str);
@@ -2126,7 +2162,10 @@ public class RAS implements Comparable<RAS> {
 	public RAS(String pn) {
 		
 		ReadPN(pn);
-		joinHelper = new String[2*p];
+		joinHelper_size = p*2*10;
+		joinIntHelper_size = 10;
+		joinHelper = new char[joinHelper_size];
+		joinIntHelper = new char[p][joinIntHelper_size];
 		//
 		CalculateReachableStates();
 		CalculateReachableSafeStates();
@@ -2161,7 +2200,7 @@ public class RAS implements Comparable<RAS> {
 				if (allunsafe) {
 					PreviousStates.get(i).clear();
 					NextStates.get(i).clear();
-					if (!StateDict.remove(join(",", States.get(i), p - r), i))
+					if (!StateDict.remove(join(',', States.get(i), p - r), i))
 						System.out.println("Problem");
 
 				}
