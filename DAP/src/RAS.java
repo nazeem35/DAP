@@ -1117,7 +1117,7 @@ public class RAS implements Comparable<RAS> {
 				joinHelper[lastIdx++] = sep;
 		}
 		
-		return new String(joinHelper);
+		return new String(joinHelper,0,lastIdx);
 		
 		
 		
